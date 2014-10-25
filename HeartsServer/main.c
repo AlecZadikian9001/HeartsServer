@@ -160,31 +160,12 @@ int getMoveForPlayer(struct Player* player){
     return atoi(player->recvBuffer);
 }
 
-ReturnCode playRound(struct Game* game){
-    game->heartsDropped = false;
-    game->winner = 0;
-    while (game->trickNo < game->deckSize / game->numPlayers){
-        memset(game->trick, NULL_CARD, MAX_PLAYERS*sizeof(card));
-        game->cardsPlayed = 0;
-        while (game->cardsPlayed < game->numPlayers){
-            int play = getMoveForPlayer(&game->players[game->turn]);
-            if (play==RET_NETWORK_ERROR) return RET_NETWORK_ERROR;
-            handlePlay(game, play);
-            for (int playerIndex = 0; playerIndex < game->numPlayers; playerIndex++){
-                int ret = notifyPlayerOfMove(&game->players[playerIndex], game->turn, game->trick[game->cardsPlayed-1]);
-                if (ret!=RET_NO_ERROR) return ret;
-            }
-        }
-        game->trickNo++;
-    }
-    return RET_NO_ERROR;
-}
-
-ReturnCode runNewGame(struct Game* game){
-    // Deal...v
+ReturnCode runNewRound(struct Game* game){
     card deck[DECK_SIZE];
     int discarded = DECK_SIZE % game->numPlayers;
     game->deckSize = DECK_SIZE - discarded;
+    game->trickNo = 0;
+    
     // Shuffle deck...v
     bzero(deck, sizeof(card)*DECK_SIZE);
     int index;
@@ -204,6 +185,8 @@ ReturnCode runNewGame(struct Game* game){
         }
     }
     //...^
+    
+    // Distribute cards...v
     int deckIndex = 0;
     struct Player* player;
     int cardsPerPlayer = DECK_SIZE / game->numPlayers;
@@ -220,19 +203,61 @@ ReturnCode runNewGame(struct Game* game){
         }
     }
     //...^
-    game->trickNo = 0;
+    
+    // Tell players that the game is starting...v
+    char handBuffer[3];
+    int addedLen;
     for (int playerIndex = 0; playerIndex < game->numPlayers; playerIndex++){
         player = &game->players[playerIndex];
-        sprintf(player->sendBuffer, "3%d,%d", game->numPlayers, game->turn);
+        sprintf(player->sendBuffer, "3%d,%d,", game->numPlayers, game->turn);
         int bufIndex = strlen(player->sendBuffer);
         int cardsPerPlayer = game->deckSize / game->numPlayers;
         for (int handIndex = 0; handIndex < cardsPerPlayer; handIndex++){
-            player->sendBuffer[bufIndex] = jkhafsdhj// TODO TODO
+            sprintf(handBuffer, "%d", player->hand[handIndex]);
+            addedLen = strlen(handBuffer);
+            memcpy(&player->sendBuffer[bufIndex], handBuffer, addedLen);
+            bufIndex+=addedLen;
+            player->sendBuffer[bufIndex] = ',';
+            bufIndex++;
         }
+        player->sendBuffer[bufIndex] = '\0';
+        // By now, sendBuffer will be "3numPlayers,turn,hand1,hand2,hand3,...handN"
         int ret = cTalkSend(player->fd, player->sendBuffer, SEND_BUFFER_LEN); // notify each player that the game is starting, how many players are in, whose turn it is, and their hands
         if (ret==0) return RET_NETWORK_ERROR;
     }
-    return playRound(game);
+    //...^
+    
+    //Play...v
+    game->heartsDropped = false;
+    game->winner = 0;
+    while (game->trickNo < game->deckSize / game->numPlayers){
+        memset(game->trick, NULL_CARD, MAX_PLAYERS*sizeof(card));
+        game->cardsPlayed = 0;
+        while (game->cardsPlayed < game->numPlayers){
+            int play = getMoveForPlayer(&game->players[game->turn]);
+            if (play==RET_NETWORK_ERROR) return RET_NETWORK_ERROR;
+            handlePlay(game, play);
+            for (int playerIndex = 0; playerIndex < game->numPlayers; playerIndex++){
+                int ret = notifyPlayerOfMove(&game->players[playerIndex], game->turn, game->trick[game->cardsPlayed-1]);
+                if (ret!=RET_NO_ERROR) return ret;
+            }
+        }
+        game->trickNo++;
+    }
+    //...^
+    
+    return RET_NO_ERROR;
+}
+
+struct Game* createGame(int numPlayers){
+    if (numPlayers < 3 || numPlayers > 5) return RET_INPUT_ERROR;
+    struct Game* game = emalloc(sizeof(struct Game));
+    game->numPlayers = numPlayers;
+    bzero(game->trick, MAX_PLAYERS);
+    for (int i = 0; i < numPlayers; i++){
+        struct Player player;
+        game->players[i] = player;
+    }
 }
 
 int main(int argc, const char * argv[]) {

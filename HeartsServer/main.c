@@ -54,12 +54,17 @@ typedef enum{
 #define SUIT_PRIME (3)
 #define suitOf(card) (card % RANK_PRIME)
 #define rankOf(card) (card % SUIT_PRIME)
+#define makeCard(suit, rank) (SUIT_PRIME*suit + RANK_PRIME*rank)
 typedef int card; // card value = rank*RANK_PRIME + suit*SUIT_PRIME
 #define DECK_SIZE (52)
 #define MAX_PLAYERS (5)
 #define MAX_CARDS_PER_PLAYER (DECK_SIZE/MAX_PLAYERS)
+#define SEND_BUFFER_LEN (8 + MAX_CARDS_PER_PLAYER*3)
+#define RECV_BUFFER_LEN (4)
 struct Player{
     int fd; // file descriptor for AI comm
+    char sendBuffer[SEND_BUFFER_LEN];
+    char recvBuffer[RECV_BUFFER_LEN];
     uint64_t score;
     card hand[MAX_CARDS_PER_PLAYER];
     bool heartsVoid;
@@ -70,6 +75,7 @@ struct Player{
 struct Game{
     struct Player players[MAX_PLAYERS];
     int numPlayers; // 3-5
+    int deckSize; // How many cards in deck?
     int turn; // Whose turn is it? This is an index in players.
     int winner; // Player who is currently poised to take the trick.
     card trick[MAX_PLAYERS]; // cards on table
@@ -79,47 +85,9 @@ struct Game{
 };
 // ===^^
 
-card makeCard(Suit suit, Rank rank){
-    return SUIT_PRIME*suit + RANK_PRIME*rank;
-}
+// Communcation constants ===vv
 
-ReturnCode shuffleDeck(card* deck, int numDiscarded){
-    bzero(deck, sizeof(card)*DECK_SIZE);
-    int index;
-    bool isUp;
-    for (Suit suit = suit_start+1; suit < suit_end; suit++){
-        for (Rank rank = rank_start+1; rank < rank_end; rank++){
-            if (suit == suit_clubs && rank!=2 && rank-2 <= numDiscarded) break;
-            index = rand() % DECK_SIZE;
-            if (deck[index]!=NULL_CARD){
-                isUp = rand()%2;
-                while (1){
-                    index = (isUp?(index + 1):(index - 1)) % DECK_SIZE;
-                    if (deck[index]==0) break;
-                }
-            }
-            deck[index] = rank*RANK_PRIME + suit*SUIT_PRIME;
-        }
-    }
-    return RET_NO_ERROR;
-}
-
-ReturnCode dealHand(struct Game* game){
-    card deck[DECK_SIZE];
-    int discarded = DECK_SIZE % game->numPlayers;
-    shuffleDeck(deck, discarded);
-    int deckIndex = 0;
-    struct Player* player;
-    int cardsPerPlayer = DECK_SIZE / game->numPlayers;
-    for (int playerIndex = 0; playerIndex < game->numPlayers; playerIndex++){
-        player = &game->players[playerIndex];
-        for (int i = 0; i<cardsPerPlayer; i++){
-            while (deck[deckIndex] == NULL_CARD) deckIndex++;
-            player->hand[i] = deck[deckIndex];
-        }
-    }
-    return RET_NO_ERROR;
-}
+// ===^^
 
 ReturnCode handlePlay(struct Game* game, int cardIndex){
     struct Player* player = &game->players[game->turn];
@@ -131,8 +99,8 @@ ReturnCode handlePlay(struct Game* game, int cardIndex){
     if (player->hand[cardIndex] == NULL_CARD) return RET_INPUT_ERROR;
     player->hand[cardIndex] = NULL_CARD;
     // Validation...v
-    if (game->trickNo == 0){
-        if (game->cardsPlayed == 0 && playedCard != makeCard(suit_clubs, rank_2)) return RET_INPUT_ERROR; // first player must play 2 of clubs
+    if (game->cardsPlayed == 0){
+        if (playedCard != makeCard(suit_clubs, rank_2)) return RET_INPUT_ERROR; // first player must play 2 of clubs
         if (suitOf(playedCard) == suit_hearts || playedCard == makeCard(suit_spades, rank_Q)) return RET_INPUT_ERROR; // friendly trick; no hearts or queen of spades
     }
     if (!game->heartsDropped && game->cardsPlayed==0 && suitOf(playedCard) == suit_hearts) return RET_INPUT_ERROR; // no starting with hearts before hearts have been dropped
@@ -160,17 +128,111 @@ ReturnCode handlePlay(struct Game* game, int cardIndex){
     }
     //...^
     game->cardsPlayed++;
-    game->trick[game->trickNo] = playedCard;
-    game->trickNo++;
+    game->trick[game->turn] = playedCard;
+    game->turn = (game->turn+1) % game->numPlayers;
     if (playedSuit == firstSuit && playedRank > firstRank) game->winner = game->turn;
     if (suitOf(playedCard) == suit_hearts || playedCard == makeCard(suit_spades, rank_Q)) game->heartsDropped = true;
-    int score = 0;
-    if (game->cardsPlayed >= game->numPlayers){
+    if (game->cardsPlayed >= game->numPlayers){ // last card has been played
+        int score = 0;
         for (int i = 0; i<game->numPlayers; i++){
             if (suitOf(game->trick[i]) == suit_hearts) score++;
             else if (game->trick[i] == makeCard(suit_spades, rank_Q)) score += 13;
         }
+        struct Player* winner = &game->players[game->winner];
+        winner->score += score;
+        game->turn = game->winner; // this player controls
     }
+    return RET_NO_ERROR;
+}
+
+ReturnCode notifyPlayerOfMove(struct Player* player, int playerPlayed, card cardPlayed){ // fd is file descriptor, cardPlayed is the card that was played, playerPlayed is the player who just played that card
+    sprintf(player->sendBuffer, "2%d,%d", playerPlayed, cardPlayed);
+    size_t ret = cTalkSend(player->fd, player->sendBuffer, SEND_BUFFER_LEN);
+    if (ret==0) return RET_NETWORK_ERROR;
+    return RET_NO_ERROR;
+}
+
+int getMoveForPlayer(struct Player* player){
+    int ret = cTalkSend(player->fd, "1", 2);
+    if (ret==0) return RET_NETWORK_ERROR;
+    ret = cTalkRecv(player->fd, player->recvBuffer, RECV_BUFFER_LEN);
+    if (ret==0) return RET_NETWORK_ERROR;
+    return atoi(player->recvBuffer);
+}
+
+ReturnCode playRound(struct Game* game){
+    game->heartsDropped = false;
+    game->winner = 0;
+    while (game->trickNo < game->deckSize / game->numPlayers){
+        memset(game->trick, NULL_CARD, MAX_PLAYERS*sizeof(card));
+        game->cardsPlayed = 0;
+        while (game->cardsPlayed < game->numPlayers){
+            int play = getMoveForPlayer(&game->players[game->turn]);
+            if (play==RET_NETWORK_ERROR) return RET_NETWORK_ERROR;
+            handlePlay(game, play);
+            for (int playerIndex = 0; playerIndex < game->numPlayers; playerIndex++){
+                int ret = notifyPlayerOfMove(&game->players[playerIndex], game->turn, game->trick[game->cardsPlayed-1]);
+                if (ret!=RET_NO_ERROR) return ret;
+            }
+        }
+        game->trickNo++;
+    }
+    return RET_NO_ERROR;
+}
+
+ReturnCode runNewGame(struct Game* game){
+    // Deal...v
+    card deck[DECK_SIZE];
+    int discarded = DECK_SIZE % game->numPlayers;
+    game->deckSize = DECK_SIZE - discarded;
+    // Shuffle deck...v
+    bzero(deck, sizeof(card)*DECK_SIZE);
+    int index;
+    bool isUp;
+    for (Suit suit = suit_start+1; suit < suit_end; suit++){
+        for (Rank rank = rank_start+1; rank < rank_end; rank++){
+            if (suit == suit_clubs && rank!=2 && rank-2 <= discarded) break;
+            index = rand() % DECK_SIZE;
+            if (deck[index]!=NULL_CARD){
+                isUp = rand()%2;
+                while (1){
+                    index = (isUp?(index + 1):(index - 1)) % DECK_SIZE;
+                    if (deck[index]==0) break;
+                }
+            }
+            deck[index] = makeCard(suit, rank);
+        }
+    }
+    //...^
+    int deckIndex = 0;
+    struct Player* player;
+    int cardsPerPlayer = DECK_SIZE / game->numPlayers;
+    for (int playerIndex = 0; playerIndex < game->numPlayers; playerIndex++){
+        player = &game->players[playerIndex];
+        player->heartsVoid = false;
+        player->clubsVoid = false;
+        player->diamondsVoid = false;
+        player->spadesVoid = false;
+        for (int i = 0; i<cardsPerPlayer; i++){
+            while (deck[deckIndex] == NULL_CARD) deckIndex++;
+            player->hand[i] = deck[deckIndex];
+            if (deck[deckIndex] == makeCard(suit_clubs, rank_2)) game->turn = playerIndex; // make the guy with the 2 of clubs go first
+        }
+    }
+    //...^
+    game->trickNo = 0;
+    for (int playerIndex = 0; playerIndex < game->numPlayers; playerIndex++){
+        player = &game->players[playerIndex];
+        sprintf(player->sendBuffer, "3%d,%d", game->numPlayers, game->turn);
+        int bufIndex = strlen(player->sendBuffer);
+        int cardsPerPlayer = game->deckSize / game->numPlayers;
+        for (int handIndex = 0; handIndex < cardsPerPlayer; handIndex++){
+            player->sendBuffer[bufIndex] = jkhafsdhj// TODO TODO
+        }
+        int ret = cTalkSend(player->fd, player->sendBuffer, SEND_BUFFER_LEN); // notify each player that the game is starting, how many players are in, whose turn it is, and their hands
+        if (ret==0) return RET_NETWORK_ERROR;
+    }
+    return playRound(game);
 }
 
 int main(int argc, const char * argv[]) {

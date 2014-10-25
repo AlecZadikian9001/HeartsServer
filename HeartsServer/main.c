@@ -52,7 +52,7 @@ typedef enum{
 #define NULL_CARD (0)
 #define RANK_PRIME (2)
 #define SUIT_PRIME (3)
-typedef int card; // card value = rank*RANK_PRIME + suit*SUIT_PRIME
+typedef int card; // card value = rank*RANK_PRIME + suit*SUIT_PRIME // TODO fix all occurences where you get the suit or rank...
 #define DECK_SIZE (52)
 #define MAX_PLAYERS (5)
 #define MAX_CARDS_PER_PLAYER (DECK_SIZE/MAX_PLAYERS)
@@ -60,6 +60,10 @@ struct Player{
     int fd; // file descriptor for AI comm
     uint64_t score;
     card hand[MAX_CARDS_PER_PLAYER];
+    bool heartsVoid;
+    bool clubsVoid;
+    bool diamondsVoid;
+    bool spadesVoid;
 };
 struct Game{
     struct Player players[MAX_PLAYERS];
@@ -122,12 +126,36 @@ ReturnCode handlePlay(struct Game* game, int cardIndex){
     // Validation...v
     if (game->trickNo == 0){
         if (game->cardsPlayed == 0 && playedCard != makeCard(suit_clubs, rank_2)) return RET_INPUT_ERROR; // first player must play 2 of clubs
-        if (playedCard % SUIT_PRIME == suit_hearts || playedCard == makeCard(suit_spades, rank_Q)) return RET_INPUT_ERROR; // friendly trick; no hearts or queen of spades
+        if (playedCard / SUIT_PRIME == suit_hearts || playedCard == makeCard(suit_spades, rank_Q)) return RET_INPUT_ERROR; // friendly trick; no hearts or queen of spades
     }
-    if (!game->heartsDropped && game->cardsPlayed==0 && playedCard % SUIT_PRIME == suit_hearts) return RET_INPUT_ERROR; // no starting with hearts before hearts have been dropped
-    if ( // make sure player doesn't have suit if he's calling void)
+    if (!game->heartsDropped && game->cardsPlayed==0 && playedCard / SUIT_PRIME == suit_hearts) return RET_INPUT_ERROR; // no starting with hearts before hearts have been dropped
+    if (game->cardsPlayed!=0){ // then we have to make sure the correct suit is being played
+        Suit playedSuit = playedCard / SUIT_PRIME;
+        Suit firstSuit = game->trick[0] / SUIT_PRIME;
+        if (playedSuit != firstSuit){ // if the client is trying to claim a void
+            bool excused = false;
+            switch (playedSuit){ // maybe the void is already cached
+                case suit_clubs:{ excused = player->clubsVoid; break; }
+                case suit_hearts:{ excused = player->heartsVoid; break; }
+                case suit_diamonds:{ excused = player->diamondsVoid; break; }
+                case suit_spades:{ excused = player->spadesVoid; break; }
+            }
+            if (!excused){ // if it's not, we have to check the player's hand
+                for (int i = 0 ; i<MAX_CARDS_PER_PLAYER; i++){
+                    if (player->hand[i] / SUIT_PRIME == firstSuit) return RET_INPUT_ERROR; // tried to illegally claim void
+                }
+                switch (firstSuit){ // cache it if it's valid
+                    case suit_clubs:{ player->clubsVoid = true; break; }
+                    case suit_hearts:{ player->heartsVoid = true; break; }
+                    case suit_diamonds:{ player->diamondsVoid = true; break; }
+                    case suit_spades:{ player->spadesVoid = true; break; }
+                }
+            }
+        }
+    }
     //...^
     game->cardsPlayed++;
+    if (playedCard / SUIT_PRIME == suit_hearts || playedCard == makeCard(suit_spades, rank_Q)) game->heartsDropped = true;
     if (game->cardsPlayed == game->numPlayers){
         
     }

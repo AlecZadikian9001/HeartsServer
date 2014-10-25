@@ -52,7 +52,9 @@ typedef enum{
 #define NULL_CARD (0)
 #define RANK_PRIME (2)
 #define SUIT_PRIME (3)
-typedef int card; // card value = rank*RANK_PRIME + suit*SUIT_PRIME // TODO fix all occurences where you get the suit or rank...
+#define suitOf(card) (card % RANK_PRIME)
+#define rankOf(card) (card % SUIT_PRIME)
+typedef int card; // card value = rank*RANK_PRIME + suit*SUIT_PRIME
 #define DECK_SIZE (52)
 #define MAX_PLAYERS (5)
 #define MAX_CARDS_PER_PLAYER (DECK_SIZE/MAX_PLAYERS)
@@ -69,6 +71,7 @@ struct Game{
     struct Player players[MAX_PLAYERS];
     int numPlayers; // 3-5
     int turn; // Whose turn is it? This is an index in players.
+    int winner; // Player who is currently poised to take the trick.
     card trick[MAX_PLAYERS]; // cards on table
     int cardsPlayed; // number of cards played this trick
     int trickNo; // the trick number (starts at 0)
@@ -121,17 +124,19 @@ ReturnCode dealHand(struct Game* game){
 ReturnCode handlePlay(struct Game* game, int cardIndex){
     struct Player* player = &game->players[game->turn];
     card playedCard = player->hand[cardIndex];
+    Suit playedSuit = suitOf(playedCard);
+    Rank playedRank = rankOf(playedCard);
+    Suit firstSuit = suitOf(game->trick[0]);
+    Rank firstRank = rankOf(game->trick[0]);
     if (player->hand[cardIndex] == NULL_CARD) return RET_INPUT_ERROR;
     player->hand[cardIndex] = NULL_CARD;
     // Validation...v
     if (game->trickNo == 0){
         if (game->cardsPlayed == 0 && playedCard != makeCard(suit_clubs, rank_2)) return RET_INPUT_ERROR; // first player must play 2 of clubs
-        if (playedCard / SUIT_PRIME == suit_hearts || playedCard == makeCard(suit_spades, rank_Q)) return RET_INPUT_ERROR; // friendly trick; no hearts or queen of spades
+        if (suitOf(playedCard) == suit_hearts || playedCard == makeCard(suit_spades, rank_Q)) return RET_INPUT_ERROR; // friendly trick; no hearts or queen of spades
     }
-    if (!game->heartsDropped && game->cardsPlayed==0 && playedCard / SUIT_PRIME == suit_hearts) return RET_INPUT_ERROR; // no starting with hearts before hearts have been dropped
+    if (!game->heartsDropped && game->cardsPlayed==0 && suitOf(playedCard) == suit_hearts) return RET_INPUT_ERROR; // no starting with hearts before hearts have been dropped
     if (game->cardsPlayed!=0){ // then we have to make sure the correct suit is being played
-        Suit playedSuit = playedCard / SUIT_PRIME;
-        Suit firstSuit = game->trick[0] / SUIT_PRIME;
         if (playedSuit != firstSuit){ // if the client is trying to claim a void
             bool excused = false;
             switch (playedSuit){ // maybe the void is already cached
@@ -142,7 +147,7 @@ ReturnCode handlePlay(struct Game* game, int cardIndex){
             }
             if (!excused){ // if it's not, we have to check the player's hand
                 for (int i = 0 ; i<MAX_CARDS_PER_PLAYER; i++){
-                    if (player->hand[i] / SUIT_PRIME == firstSuit) return RET_INPUT_ERROR; // tried to illegally claim void
+                    if (suitOf(player->hand[i]) == firstSuit) return RET_INPUT_ERROR; // tried to illegally claim void
                 }
                 switch (firstSuit){ // cache it if it's valid
                     case suit_clubs:{ player->clubsVoid = true; break; }
@@ -155,9 +160,16 @@ ReturnCode handlePlay(struct Game* game, int cardIndex){
     }
     //...^
     game->cardsPlayed++;
-    if (playedCard / SUIT_PRIME == suit_hearts || playedCard == makeCard(suit_spades, rank_Q)) game->heartsDropped = true;
-    if (game->cardsPlayed == game->numPlayers){
-        
+    game->trick[game->trickNo] = playedCard;
+    game->trickNo++;
+    if (playedSuit == firstSuit && playedRank > firstRank) game->winner = game->turn;
+    if (suitOf(playedCard) == suit_hearts || playedCard == makeCard(suit_spades, rank_Q)) game->heartsDropped = true;
+    int score = 0;
+    if (game->cardsPlayed >= game->numPlayers){
+        for (int i = 0; i<game->numPlayers; i++){
+            if (suitOf(game->trick[i]) == suit_hearts) score++;
+            else if (game->trick[i] == makeCard(suit_spades, rank_Q)) score += 13;
+        }
     }
 }
 

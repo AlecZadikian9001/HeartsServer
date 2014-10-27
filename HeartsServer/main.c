@@ -249,13 +249,14 @@ ReturnCode runNewRound(struct Game* game){
     return RET_NO_ERROR;
 }
 
-struct Game* createGame(int numPlayers){
-    if (numPlayers < 3 || numPlayers > 5) return RET_INPUT_ERROR;
+struct Game* createGame(int numPlayers, int fds[numPlayers]){
+    if (numPlayers < 3 || numPlayers > 5) return NULL; // TODO error checking
     struct Game* game = emalloc(sizeof(struct Game));
     game->numPlayers = numPlayers;
     bzero(game->trick, MAX_PLAYERS);
     for (int i = 0; i < numPlayers; i++){
         struct Player player;
+        player.fd = fds[i];
         game->players[i] = player;
     }
 }

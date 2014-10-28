@@ -262,6 +262,10 @@ struct Game* createGame(int numPlayers, int* fds){
     return game;
 }
 
+void *gameThread(void *args){
+    struct Game* game = createGame(<#int numPlayers#>, <#int *fds#>)
+}
+
 ReturnCode runGames(int threadNo){
     for (int i = 0; i<threadNo; i++){
         

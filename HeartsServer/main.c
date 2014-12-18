@@ -27,15 +27,15 @@
 
 // Game-related structs ===vv
 typedef enum{
-    suit_start = 0,
+    suit_start = 0, // Error, not an actual value but an open bound.
     suit_hearts,
     suit_clubs,
     suit_diamonds,
     suit_spades,
-    suit_end
+    suit_end // Error, not an actual value but an open bound.
 } Suit;
 typedef enum{
-    rank_start = 0,
+    rank_start = 0, // Error, not an actual value but an open bound.
     rank_2,
     rank_3,
     rank_4,
@@ -49,21 +49,21 @@ typedef enum{
     rank_Q,
     rank_K,
     rank_A,
-    rank_end
+    rank_end // Error, not an actual value but an open bound.
 } Rank;
 #define NULL_CARD (0)
-#define RANK_PRIME (2)
-#define SUIT_PRIME (3)
-#define suitOf(card) (card % RANK_PRIME)
-#define rankOf(card) (card % SUIT_PRIME)
-#define makeCard(suit, rank) (SUIT_PRIME*suit + RANK_PRIME*rank)
+#define RANK_BASE (1)
+#define SUIT_BASE (rank_end)
+#define suitOf(card) ((int) (card / SUIT_BASE))
+#define rankOf(card) (card % SUIT_BASE)
+#define makeCard(suit, rank) (SUIT_BASE*RANK_BASE*suit + RANK_BASE*rank)
 #define DECK_SIZE (52)
 #define MIN_PLAYERS (3)
 #define MAX_PLAYERS (6)
 #define MAX_CARDS_PER_PLAYER (DECK_SIZE/MAX_PLAYERS)
 typedef int card; // card value = rank*RANK_PRIME + suit*SUIT_PRIME
 // Communcation constants ===vv
-#define MAX_NAME_LENGTH (10)
+#define MAX_NAME_LENGTH (16)
 #define SEND_BUFFER_LEN (8 + MAX_CARDS_PER_PLAYER*3)
 #define RECV_BUFFER_LEN (4 + MAX_NAME_LENGTH)
 // ===^^
@@ -242,10 +242,12 @@ ReturnCode runNewRound(struct Game* game){
         while (game->cardsPlayed < game->numPlayers){
             int play = getMoveForPlayer(game->players[game->turn], game->sendBuffer, game->recvBuffer);
             if (play==RET_NETWORK_ERROR) return RET_NETWORK_ERROR;
-            handlePlay(game, play);
+            if (handlePlay(game, play) != RET_NO_ERROR) return RET_INPUT_ERROR;
             for (int playerIndex = 0; playerIndex < game->numPlayers; playerIndex++){
-                int ret = notifyPlayerOfMove(game->players[playerIndex], game->turn, game->trick[game->cardsPlayed-1], game->sendBuffer);
-                if (ret!=RET_NO_ERROR) return ret;
+                if (playerIndex != game->turn){
+                    int ret = notifyPlayerOfMove(game->players[playerIndex], game->turn, game->trick[game->cardsPlayed-1], game->sendBuffer);
+                    if (ret!=RET_NO_ERROR) return ret;
+                }
             }
         }
         game->trickNo++;
@@ -303,7 +305,7 @@ void *gameThread(void *arg){ // One thread is used to one test one group.
     for (uint64_t i = 0; i<threadArg->numTests; i++){
         ret = runNewRound(game);
         if (ret!=RET_NO_ERROR){
-            printf("***FATAL ERROR IN GAME THREAD %d: ERROR CODE %d***\n", threadArg->threadNo, ret);
+            printf("***GAME THREAD %d IS STOPPING DUE TO ERROR: ERROR CODE %d***\n", threadArg->threadNo, ret);
             break;
         }
     }
@@ -312,12 +314,16 @@ void *gameThread(void *arg){ // One thread is used to one test one group.
         printf("%s scored %llu.\n", game->players[i]->name, game->players[i]->score);
     }
     printf("========================^\n");
+    for (int i = 0; i<threadArg->numPlayers; i++){
+        cTalkSend(threadArg->outs[i], "4", 2);
+    }
     freeGame(game);
     for (int i = 0; i<threadArg->numPlayers; i++){
         close(threadArg->ins[i]);
         close(threadArg->outs[i]);
     }
     efree(threadArg->ins);
+    
     efree(threadArg->outs);
     efree(threadArg);
     pthread_detach(pthread_self());
@@ -371,6 +377,7 @@ int main(int argc, const char * argv[]) {
         exit(0);
     }
     //...^
+    // Make and run threads...v
     int numThreads = numPlayers/playersPerGroup;
     int fdIndex = 4;
     for (int i = 0; i < numThreads; i++){
@@ -384,7 +391,7 @@ int main(int argc, const char * argv[]) {
         }
         fdIndex+=2*playersPerGroup;
         arg->threadNo = i;
-        arg->numPlayers = numPlayers;
+        arg->numPlayers = playersPerGroup;
         arg->numTests = numTests;
         arg->outs = outs;
         arg->ins = ins;
@@ -392,7 +399,9 @@ int main(int argc, const char * argv[]) {
             if (logLevel >= LOG_ERROR) printf("***FATAL ERROR: UNABLE TO CREATE A THREAD, RAGEQUITTING***\n");
             exit(0);
         }
+        printf("Created thread %d.\n", i);
     }
+    //...^
     return 0;
 }
 

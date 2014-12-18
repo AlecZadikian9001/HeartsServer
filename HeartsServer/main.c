@@ -62,7 +62,8 @@ typedef int card; // card value = rank*RANK_PRIME + suit*SUIT_PRIME
 #define SEND_BUFFER_LEN (8 + MAX_CARDS_PER_PLAYER*3)
 #define RECV_BUFFER_LEN (4)
 struct Player{
-    int fd; // file descriptor for AI comm
+    int in; // file input descriptor for AI comm
+    int out; //file output descriptor for AI comm
     char sendBuffer[SEND_BUFFER_LEN];
     char recvBuffer[RECV_BUFFER_LEN];
     uint64_t score;
@@ -145,17 +146,17 @@ ReturnCode handlePlay(struct Game* game, int cardIndex){
     return RET_NO_ERROR;
 }
 
-ReturnCode notifyPlayerOfMove(struct Player* player, int playerPlayed, card cardPlayed){ // fd is file descriptor, cardPlayed is the card that was played, playerPlayed is the player who just played that card
+ReturnCode notifyPlayerOfMove(struct Player* player, int playerPlayed, card cardPlayed){ // cardPlayed is the card that was played, playerPlayed is the player who just played that card
     sprintf(player->sendBuffer, "2%d,%d", playerPlayed, cardPlayed);
-    size_t ret = cTalkSend(player->fd, player->sendBuffer, SEND_BUFFER_LEN);
+    size_t ret = cTalkSend(player->out, player->sendBuffer, SEND_BUFFER_LEN);
     if (ret==0) return RET_NETWORK_ERROR;
     return RET_NO_ERROR;
 }
 
 int getMoveForPlayer(struct Player* player){
-    int ret = cTalkSend(player->fd, "1", 2);
+    int ret = cTalkSend(player->out, "1", 2);
     if (ret==0) return RET_NETWORK_ERROR;
-    ret = cTalkRecv(player->fd, player->recvBuffer, RECV_BUFFER_LEN);
+    ret = cTalkRecv(player->in, player->recvBuffer, RECV_BUFFER_LEN);
     if (ret==0) return RET_NETWORK_ERROR;
     return atoi(player->recvBuffer);
 }
@@ -222,7 +223,7 @@ ReturnCode runNewRound(struct Game* game){
         }
         player->sendBuffer[bufIndex] = '\0';
         // By now, sendBuffer will be "3numPlayers,turn,hand1,hand2,hand3,...handN"
-        int ret = cTalkSend(player->fd, player->sendBuffer, SEND_BUFFER_LEN); // notify each player that the game is starting, how many players are in, whose turn it is, and their hands
+        int ret = cTalkSend(player->out, player->sendBuffer, SEND_BUFFER_LEN); // notify each player that the game is starting, how many players are in, whose turn it is, and their hands
         if (ret==0) return RET_NETWORK_ERROR;
     }
     //...^
@@ -249,21 +250,43 @@ ReturnCode runNewRound(struct Game* game){
     return RET_NO_ERROR;
 }
 
-struct Game* createGame(int numPlayers, int* fds){
+struct Game* createGame(int numPlayers, int* ins, int* outs){
     if (numPlayers < 3 || numPlayers > 5) return NULL; // TODO error checking
     struct Game* game = emalloc(sizeof(struct Game));
     game->numPlayers = numPlayers;
     bzero(game->trick, MAX_PLAYERS);
     for (int i = 0; i < numPlayers; i++){
         struct Player player;
-        player.fd = fds[i];
+        player.in = ins[i];
+        player.out = outs[i];
         game->players[i] = player;
     }
     return game;
 }
 
-void *gameThread(void *args){
-    struct Game* game = createGame(<#int numPlayers#>, <#int *fds#>)
+struct ThreadArg{
+    int threadNo; // Thread number
+    int numPlayers; // Number of players
+    uint64_t numTests; // Number of tests (game rounds) to run
+    int* ins; // Input fds
+    int* outs; // Output fds
+};
+
+void *gameThread(void *arg){
+    struct ThreadArg* threadArg = arg;
+    struct Game* game = createGame(threadArg->numPlayers, threadArg->ins, threadArg->outs);
+    ReturnCode ret;
+    for (uint64_t i = 0; i<threadArg->numTests; i++){
+        ret = runNewRound(game);
+        if (ret!=RET_NO_ERROR){
+            printf("***FATAL ERROR IN GAME THREAD %d: %d***\n", threadArg->threadNo, ret);
+            break;
+        }
+    }
+    printf("Thread %d finished =====v\n", threadArg->threadNo);
+    
+    printf("========================^\n");
+    return NULL;
 }
 
 ReturnCode runGames(int threadNo){
@@ -273,24 +296,15 @@ ReturnCode runGames(int threadNo){
 }
 
 int main(int argc, const char * argv[]) {
+    //Args...v
+    /*
+     0. Program Name
+     1.
+     */
+    //...^
     
     return 0;
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 

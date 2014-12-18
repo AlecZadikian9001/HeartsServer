@@ -62,8 +62,8 @@ Communication at the Low Level:{
     If you aren't familiar with named pipes, check them out: http://en.wikipedia.org/wiki/Named_pipe 
     Basically, a named pipe "looks" like a file on a Unix system, but it's actually more like a stream of data.
     Whatever language you use should support reading and writing to/from named pipes.
-    In C, you'd use the open() function defined in fcntl.h and read() and write() defined in unistd.h.
-    In Java, you'd use a RandomAccessFile object and whatever methods that has.
+    In C, you'd make the pipe with mkfifo() and use open(), read(), write() to open, read, and write.
+    In other languages... look it up, or more likely, I'll make templates.
     
     Now, there's a problem we need to address. Messages sent through pipes don't have "start" and "stop" markers. The server and client need to know when each message starts and stops.
     To solve this problem, each message is prepended with bytes representing the length of the message.
@@ -82,23 +82,32 @@ Communication at the Low Level:{
 
 Communication at the High Level:{
     All messages to/from the server should be null-terminated strings. If you don't know what "null-terminated" means, you most likely don't have to worry about it.
-    When all the AI players are being added in, the server sends the message "0" to all the clients.
-    Your client should immediately respond to a "0" message with your AI's ASCII name of maximum length 15 characters (for example, "Moon Bot").
+    When all the AI players are being added in, the server sends the message "@" to all the clients.
+    Your client should immediately respond to a "@" message with your AI's ASCII name of maximum length 15 characters (for example, "Moon Bot").
     The rounds then begin.
     The server shuffles and distributes the deck each round.
-    Before each round starts, the server sends a message to your client with the character '3' followed immediately by the number of players in the game, the zero-indexed ID of your client, the ID of the player whose turn it is, then all the cards IN ORDER in your hand separated by commas (represented as integers as described above).
-    This is the format: "3numPlayers,playerID,turn,card1,card2,card3,...cardN"
+    Before each round starts, the server sends a message to your client with the character ':' followed immediately by the number of players in the game, the zero-indexed ID of your client, the ID of the player whose turn it is, then all the cards IN ORDER in your hand separated by commas (represented as integers as described above).
+    This is the format: ":numPlayers,playerID,turn,card1,card2,card3,...cardN" (Example: ":4,1,2,34,33,32,31,30,10,11,12,13,14,15,16,17")
     Once your AI receives this message, it should keep these cards in an ordered array in the order they are sent by the server, NOT a list. The index of each card matters and must remain constant. Your AI should mark somehow which cards in its hand have already been played.
     Also, make sure your AI resets any variables left over from a previous round that need to be reset.
     The turns move in order of player ID, returning back to 0 each time, until the round is over.
     For example, in a 5-player game starting with player 2, it goes 2, 3, 4, 0, 1, 2, 3, 4, 0, 1, 2, 3, 4, ...
-    The server then asks each AI for what card it wants to play by sending the message "1".
-    Your AI should respond to the "1" message with the zero-starting index of the card (in its hand) that it wants to play, represented as a base-10 number in ASCII. (For example, "12" if it wants to play the 13th card in its hand).
+    The server then asks each AI for what card it wants to play by sending the message "[".
+    Your AI should respond to the "[" message with the zero-starting index of the card (in its hand) that it wants to play, represented as a base-10 number in ASCII. (Example: "10" if it wants to play the 11th card in its hand).
     When a player plays a card, the server tells every player except the one that just played which player played and which card (integer representation) was played.
-    The format of this is "2player,card" (Example: "23,34").
+    The format of this is "]player,card" (Example: "]3,34" means that player 3 played a Seven of Clubs).
     Your AI does not have to respond immediately to this message, but it should make any necessary adjustments to its thinking, log the move, etc. before the server asks your AI for its move later on.
     After all the tricks in the hand have been played, the players' scores will be logged on the server, and a new round will begin. This will continue until the server has run many rounds and has accumulated a sum of the scores for each AI player.
-    The server will send the message "4" to every client to tell each that testing has stopped. When your client receives the "4" message, it should stop its process (though this is not strictly necessary).
+    The server will send the message ";" to every client to tell each that testing has stopped. When your client receives the ";" message, it should stop its process (though this is not strictly necessary).
+
+	Reference of message headers:{
+		_Message Header_			_Meaning_				_Action_	
+		"@"							Send name				ASAP send the name of your AI.
+		":"							Round starting			Read in your hand, set up your AI, etc.
+		"["							Asking for play			ASAP send the index of the card you want to play.
+		"]"							Card played				Take note that that player played that card.
+		";"							Testing ended			Shut down your AI.
+	}
 }
     
     

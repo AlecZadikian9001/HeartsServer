@@ -152,14 +152,14 @@ ReturnCode handlePlay(struct Game* game, int cardIndex){
 }
 
 ReturnCode notifyPlayerOfMove(struct Player* player, int playerPlayed, card cardPlayed, char* sendBuffer){ // cardPlayed is the card that was played, playerPlayed is the player who just played that card
-    sprintf(sendBuffer, "2%d,%d", playerPlayed, cardPlayed);
+    sprintf(sendBuffer, "]%d,%d", playerPlayed, cardPlayed);
     size_t ret = cTalkSend(player->out, sendBuffer, SEND_BUFFER_LEN);
     if (ret==0) return RET_NETWORK_ERROR;
     return RET_NO_ERROR;
 }
 
 int getMoveForPlayer(struct Player* player, char* sendBuffer, char* recvBuffer){
-    int ret = cTalkSend(player->out, "1", 2);
+    int ret = cTalkSend(player->out, "[", 2);
     if (ret==0) return RET_NETWORK_ERROR;
     ret = cTalkRecv(player->in, recvBuffer, RECV_BUFFER_LEN);
     if (ret==0) return RET_NETWORK_ERROR;
@@ -215,7 +215,7 @@ ReturnCode runNewRound(struct Game* game){
     int addedLen;
     for (int playerIndex = 0; playerIndex < game->numPlayers; playerIndex++){
         player = game->players[playerIndex];
-        sprintf(game->sendBuffer, "3%d,%d,%d,", game->numPlayers, playerIndex, game->turn);
+        sprintf(game->sendBuffer, ":%d,%d,%d,", game->numPlayers, playerIndex, game->turn);
         int bufIndex = strlen(game->sendBuffer);
         int cardsPerPlayer = game->deckSize / game->numPlayers;
         for (int handIndex = 0; handIndex < cardsPerPlayer; handIndex++){
@@ -227,7 +227,7 @@ ReturnCode runNewRound(struct Game* game){
             bufIndex++;
         }
         game->sendBuffer[bufIndex] = '\0';
-        // By now, sendBuffer will be "3numPlayers,playerID,turn,hand1,hand2,hand3,...handN"
+        // By now, sendBuffer will be ":numPlayers,playerID,turn,hand1,hand2,hand3,...handN"
         int ret = cTalkSend(player->out, game->sendBuffer, SEND_BUFFER_LEN); // notify each player that the game is starting, how many players are in, the player's ID number [0, numPlayers-1], whose turn it is, and their hands
         if (ret==0) return RET_NETWORK_ERROR;
     }
@@ -269,11 +269,12 @@ struct Game* createGame(int numPlayers, int* ins, int* outs, char* sendBuffer, c
         player->in = ins[i];
         player->out = outs[i];
         game->players[i] = player;
-        int ret = cTalkSend(player->in, "0", 2); // Ask for the player's name
+        int ret = cTalkSend(player->in, "@", 2); // Ask for the player's name
         if (ret==0) return NULL; // error
         ret = cTalkRecv(player->in, game->recvBuffer, RECV_BUFFER_LEN); // Get the player's name in response
         if (ret==0) return NULL; // error
         player->name = strdup(game->recvBuffer);
+        printf("√ Player %s joined game.\n", player->name);
     }
     return game;
 }
@@ -301,6 +302,9 @@ void *gameThread(void *arg){ // One thread is used to one test one group.
     char* sendBuffer = emalloc(SEND_BUFFER_LEN);
     char* recvBuffer = emalloc(RECV_BUFFER_LEN);
     struct Game* game = createGame(threadArg->numPlayers, threadArg->ins, threadArg->outs, sendBuffer, recvBuffer);
+    if (game==NULL){
+        printf("***GAME THREAD %d IS STOPPING DUE TO FATAL ERROR CREATING GAME***\n", threadArg->threadNo);
+    }
     ReturnCode ret;
     for (uint64_t i = 0; i<threadArg->numTests; i++){
         ret = runNewRound(game);
@@ -315,7 +319,7 @@ void *gameThread(void *arg){ // One thread is used to one test one group.
     }
     printf("========================^\n");
     for (int i = 0; i<threadArg->numPlayers; i++){
-        cTalkSend(threadArg->outs[i], "4", 2);
+        cTalkSend(threadArg->outs[i], ";", 2);
     }
     freeGame(game);
     for (int i = 0; i<threadArg->numPlayers; i++){

@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>IDESourceControlProjectFavoriteDictionaryKey</key>
+	<false/>
+	<key>IDESourceControlProjectIdentifier</key>
+	<string>A093A3C9-66CF-4EFB-8CA8-235C6C0FF918</string>
+	<key>IDESourceControlProjectName</key>
+	<string>HeartsAI</string>
+	<key>IDESourceControlProjectOriginsDictionary</key>
+	<dict>
+		<key>2E30EE4C341FFCD505E7BA6D5739EE7E51B913B7</key>
+		<string>https://github.com/AlecZadikian9001/HeartsServer.git</string>
+		<key>DB77F8608B1231C949F52F309EC301233F813907</key>
+		<string>https://github.com/AlecZadikian9001/BrickDNS.git</string>
+	</dict>
+	<key>IDESourceControlProjectPath</key>
+	<string>HeartsAI/HeartsAI.xcodeproj</string>
+	<key>IDESourceControlProjectRelativeInstallPathDictionary</key>
+	<dict>
+		<key>2E30EE4C341FFCD505E7BA6D5739EE7E51B913B7</key>
+		<string>../../..</string>
+		<key>DB77F8608B1231C949F52F309EC301233F813907</key>
+		<string>../../../..</string>
+	</dict>
+	<key>IDESourceControlProjectURL</key>
+	<string>https://github.com/AlecZadikian9001/HeartsServer.git</string>
+	<key>IDESourceControlProjectVersion</key>
+	<integer>111</integer>
+	<key>IDESourceControlProjectWCCIdentifier</key>
+	<string>2E30EE4C341FFCD505E7BA6D5739EE7E51B913B7</string>
+	<key>IDESourceControlProjectWCConfigurations</key>
+	<array>
+		<dict>
+			<key>IDESourceControlRepositoryExtensionIdentifierKey</key>
+			<string>public.vcs.git</string>
+			<key>IDESourceControlWCCIdentifierKey</key>
+			<string>DB77F8608B1231C949F52F309EC301233F813907</string>
+			<key>IDESourceControlWCCName</key>
+			<string></string>
+		</dict>
+		<dict>
+			<key>IDESourceControlRepositoryExtensionIdentifierKey</key>
+			<string>public.vcs.git</string>
+			<key>IDESourceControlWCCIdentifierKey</key>
+			<string>2E30EE4C341FFCD505E7BA6D5739EE7E51B913B7</string>
+			<key>IDESourceControlWCCName</key>
+			<string>HeartsServer</string>
+		</dict>
+	</array>
+</dict>
+</plist>

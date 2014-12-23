@@ -263,16 +263,17 @@ struct Game* createGame(int numPlayers, int* ins, int* outs, char* sendBuffer, c
     game->sendBuffer = sendBuffer;
     game->recvBuffer = recvBuffer;
     game->numPlayers = numPlayers;
+    game->players = emalloc(sizeof(struct Player*)*game->numPlayers);
     bzero(game->trick, MAX_PLAYERS);
     for (int i = 0; i < numPlayers; i++){
         struct Player* player = emalloc(sizeof(struct Player));
         player->in = ins[i];
         player->out = outs[i];
         game->players[i] = player;
-        int ret = cTalkSend(player->in, "@", 2); // Ask for the player's name
-        if (ret==0) return NULL; // error
+        int ret = cTalkSend(player->out, "@", 2); // Ask for the player's name
+        if (ret==0){ printf("**Fatal error when asking for name.**\n"); return NULL; } // error
         ret = cTalkRecv(player->in, game->recvBuffer, RECV_BUFFER_LEN); // Get the player's name in response
-        if (ret==0) return NULL; // error
+        if (ret==0){ printf("**Fatal error when receiving name.**\n"); return NULL; } // error
         player->name = strdup(game->recvBuffer);
         printf("√ Player %s joined game.\n", player->name);
     }
@@ -389,10 +390,10 @@ int main(int argc, const char * argv[]) {
         struct ThreadArg* arg = emalloc(sizeof(struct ThreadArg));
         int* outs = emalloc(sizeof(int)*playersPerGroup);
         int* ins = emalloc(sizeof(int)*playersPerGroup);
-        for (int i2 = 0; i2 < playersPerGroup; i2++){
-            outs[i2] = open(argv[i2+fdIndex], O_WRONLY);
+        for (int i2 = 0; i2 < playersPerGroup*2; i2+=2){
+            outs[i2/2] = open(argv[i2+fdIndex], O_WRONLY);
             printf("Opened FIFO for writing: %s\n", argv[i2+fdIndex]);
-            ins[i2+1] = open(argv[i2+fdIndex+1], O_RDONLY);
+            ins[i2/2+1] = open(argv[i2+fdIndex+1], O_RDONLY);
             printf("Opened FIFO for reading: %s\n", argv[i2+fdIndex+1]);
         }
         fdIndex+=2*playersPerGroup;
@@ -407,6 +408,7 @@ int main(int argc, const char * argv[]) {
         }
         printf("Created thread %d.\n", i);
     }
+    pause();
     //...^
     return 0;
 }

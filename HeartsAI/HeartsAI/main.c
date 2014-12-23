@@ -158,7 +158,9 @@ int handlePlay(int* playerID, int* numPlayers, int* firstPlayer, int* turn, int*
 int main(int argc, const char * argv[]) {
     logLevel = LOG_FULL;
     // Get name...v
-    char* name = getName();
+    char* name;
+    if (argc==2) name = argv[1];
+    else name = getName();
     printf("Starting AI with name: %s\n", name);
     //...^
     // Create I/O named pipes, and open for reading and writing...v
@@ -168,13 +170,13 @@ int main(int argc, const char * argv[]) {
     sprintf(inPath, "/tmp/%sIn", name);
     sprintf(outPath, "/tmp/%sOut", name);
     int fifoOut = mkfifo(outPath, S_IWUSR | S_IRUSR | S_IRGRP | S_IROTH);
+    int fifoIn = mkfifo(inPath, S_IWUSR | S_IRUSR | S_IRGRP | S_IROTH);
     int out = open(outPath, O_WRONLY);
     if (out==-1){
         printf("***ERROR OPENING OUT FILE, STOPPING***\n");
         error = true;
     }
     else printf("Opened out pipe at %s\n", outPath);
-    int fifoIn = mkfifo(inPath, S_IWUSR | S_IRUSR | S_IRGRP | S_IROTH);
     int in = open(inPath, O_RDONLY);
     if (in==-1){
         printf("***ERROR OPENING IN FILE, STOPPING***\n");
@@ -224,6 +226,10 @@ int main(int argc, const char * argv[]) {
     //...^
     while (running){
         recvRet = cTalkRecv(in, recvBuffer, RECV_BUFFER_LEN);
+        if (recvRet==0 || recvRet==-1){
+            printf("**ERROR RECEIVING DATA, STOPPING**\n");
+            exit(1);
+        }
         switch (recvBuffer[0]){
             case ']':{ // Card Played
                 // Format: "]player,card"

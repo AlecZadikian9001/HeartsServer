@@ -86,14 +86,14 @@ char* getName(){ // Return the bot's name, must be unique, must be null-terminat
     return name;
 }
 
-int handlePlay(int* playerID, int* numPlayers, int* firstPlayer, int* turn, int* winner, bool* heartsBroken, card* currentCard, suit* currentSuit, rank* highestRank, card** hand, card** trick){ // Called every time a card is played by anyone, including the AI. If the AI decides to play a different card based on this, it returns its index in the hand. Otherwise returns -1.
+int handlePlay(int* playerID, int* numPlayers, int* firstPlayer, int* turn, int* winner, bool* heartsBroken, card* currentCard, suit* currentSuit, rank* highestRank, card* hand, card* trick){ // Called every time a card is played by anyone, including the AI. If the AI decides to play a different card based on this, it returns its index in the hand. Otherwise returns -1.
     // Setup (do not edit)...v
     if (turn == firstPlayer){ // New trick
         *currentSuit = suitOf(*currentCard);
         *highestRank = rank_start;
         memset(trick, NULL_CARD, MAX_PLAYERS*sizeof(card)); // Reset the trick array
     }
-    *trick[*turn] = *currentCard;
+    trick[*turn] = *currentCard;
     if (suitOf(*currentCard)==suit_hearts) *heartsBroken = true;
     if (rankOf(*currentCard) > *highestRank){
         *highestRank = rankOf(*currentCard);
@@ -119,8 +119,8 @@ int handlePlay(int* playerID, int* numPlayers, int* firstPlayer, int* turn, int*
      - rank* highestRank: The highest rank that has been played ON SUIT this round
      - int* winner: The ID of the player who currently has played the highest card on suit in the trick
      - bool* heartsBroken: Whether or not hearts have been broken this round
-     - card** hand: Your AI's hand, an array of cards
-     - card** trick: The trick (aka the cards on the table), an array of cards
+     - card* hand: Your AI's hand, an array of cards
+     - card* trick: The trick (aka the cards on the table), an array of cards
      */
     
     /* v YOUR CODE HERE (REPLACE DEFAULT) v */
@@ -129,7 +129,7 @@ int handlePlay(int* playerID, int* numPlayers, int* firstPlayer, int* turn, int*
     card checkCard;
     int ret = -1;
     for (int i = 0; i<MAX_CARDS_PER_PLAYER; i++){
-        checkCard = *hand[i];
+        checkCard = hand[i];
         if (checkCard!=NULL_CARD){
             if (*firstPlayer == *playerID){
                 if (!heartsBroken || suitOf(checkCard)!=suit_hearts){ ret = i; break; }
@@ -238,7 +238,7 @@ int main(int argc, const char * argv[]) {
                 while (recvBuffer[scanIndex]!=',') scanIndex++;
                 scanIndex++;
                 currentCard = atoi(recvBuffer+scanIndex);
-                temp1 = handlePlay(&playerID, &numPlayers, &firstPlayer, &turn, &winner, &heartsBroken, &currentCard, &currentSuit, &highestRank, &hand, &trick); // TODO verify type castings
+                temp1 = handlePlay(&playerID, &numPlayers, &firstPlayer, &turn, &winner, &heartsBroken, &currentCard, &currentSuit, &highestRank, hand, trick);
                 if (temp1!=-1) nextMove = temp1;
                 break;
             }
@@ -247,7 +247,7 @@ int main(int argc, const char * argv[]) {
                 cTalkSend(out, sendBuffer, strlen(sendBuffer)+1);
                 turn = playerID;
                 currentCard = hand[nextMove];
-                temp1 = handlePlay(&playerID, &numPlayers, &firstPlayer, &turn, &winner, &heartsBroken, &currentCard, &currentSuit, &highestRank, &hand, &trick); // TODO verify type castings
+                temp1 = handlePlay(&playerID, &numPlayers, &firstPlayer, &turn, &winner, &heartsBroken, &currentCard, &currentSuit, &highestRank, hand, trick);
                 if (temp1!=-1) nextMove = temp1;
                 break;
             }

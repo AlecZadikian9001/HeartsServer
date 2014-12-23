@@ -107,9 +107,14 @@ ReturnCode handlePlay(struct Game* game, int cardIndex){
     // Validation...v
     if (game->cardsPlayed == 0){
         if (playedCard != makeCard(suit_clubs, rank_2)) return RET_INPUT_ERROR; // first player must play 2 of clubs
-        if (suitOf(playedCard) == suit_hearts || playedCard == makeCard(suit_spades, rank_Q)) return RET_INPUT_ERROR; // friendly trick; no hearts or queen of spades
+        if (suitOf(playedCard) == suit_hearts || playedCard == makeCard(suit_spades, rank_Q)){
+            // TODO Fix this. The player is allowed to play hearts, but it just won't count for points.
+            return RET_INPUT_ERROR; // friendly trick; no hearts or queen of spades
+        }
     }
-    if (!game->heartsDropped && game->cardsPlayed==0 && suitOf(playedCard) == suit_hearts) return RET_INPUT_ERROR; // no starting with hearts before hearts have been dropped
+    if (!game->heartsDropped && game->cardsPlayed==0 && suitOf(playedCard) == suit_hearts){
+        return RET_INPUT_ERROR; // no starting with hearts before hearts have been dropped
+    }
     if (game->cardsPlayed!=0){ // then we have to make sure the correct suit is being played
         if (playedSuit != firstSuit){ // if the client is trying to claim a void
             bool excused = false;
@@ -121,7 +126,9 @@ ReturnCode handlePlay(struct Game* game, int cardIndex){
             }
             if (!excused){ // if it's not, we have to check the player's hand
                 for (int i = 0 ; i<MAX_CARDS_PER_PLAYER; i++){
-                    if (suitOf(player->hand[i]) == firstSuit) return RET_INPUT_ERROR; // tried to illegally claim void
+                    if (suitOf(player->hand[i]) == firstSuit){
+                        return RET_INPUT_ERROR; // tried to illegally claim void
+                    }
                 }
                 switch (firstSuit){ // cache it if it's valid
                     case suit_clubs:{ player->clubsVoid = true; break; }
@@ -160,9 +167,13 @@ ReturnCode notifyPlayerOfMove(struct Player* player, int playerPlayed, card card
 
 int getMoveForPlayer(struct Player* player, char* sendBuffer, char* recvBuffer){
     int ret = cTalkSend(player->out, "[", 2);
-    if (ret==0) return RET_NETWORK_ERROR;
+    if (ret==0){
+        return RET_NETWORK_ERROR;
+    }
     ret = cTalkRecv(player->in, recvBuffer, RECV_BUFFER_LEN);
-    if (ret==0) return RET_NETWORK_ERROR;
+    if (ret==0){
+        return RET_NETWORK_ERROR;
+    }
     return atoi(recvBuffer);
 }
 
@@ -229,7 +240,9 @@ ReturnCode runNewRound(struct Game* game){
         game->sendBuffer[bufIndex] = '\0';
         // By now, sendBuffer will be ":numPlayers,playerID,turn,hand1,hand2,hand3,...handN"
         int ret = cTalkSend(player->out, game->sendBuffer, SEND_BUFFER_LEN); // notify each player that the game is starting, how many players are in, the player's ID number [0, numPlayers-1], whose turn it is, and their hands
-        if (ret==0) return RET_NETWORK_ERROR;
+        if (ret==0){
+            return RET_NETWORK_ERROR;
+        }
     }
     //...^
     
@@ -241,12 +254,18 @@ ReturnCode runNewRound(struct Game* game){
         game->cardsPlayed = 0;
         while (game->cardsPlayed < game->numPlayers){
             int play = getMoveForPlayer(game->players[game->turn], game->sendBuffer, game->recvBuffer);
-            if (play==RET_NETWORK_ERROR) return RET_NETWORK_ERROR;
-            if (handlePlay(game, play) != RET_NO_ERROR) return RET_INPUT_ERROR;
+            if (play==RET_NETWORK_ERROR){
+                return RET_NETWORK_ERROR;
+            }
+            if (handlePlay(game, play) != RET_NO_ERROR){
+                return RET_INPUT_ERROR;
+            }
             for (int playerIndex = 0; playerIndex < game->numPlayers; playerIndex++){
                 if (playerIndex != game->turn){
                     int ret = notifyPlayerOfMove(game->players[playerIndex], game->turn, game->trick[game->cardsPlayed-1], game->sendBuffer);
-                    if (ret!=RET_NO_ERROR) return ret;
+                    if (ret!=RET_NO_ERROR){
+                        return ret;
+                    }
                 }
             }
         }
@@ -275,7 +294,7 @@ struct Game* createGame(int numPlayers, int* ins, int* outs, char* sendBuffer, c
         ret = cTalkRecv(player->in, game->recvBuffer, RECV_BUFFER_LEN); // Get the player's name in response
         if (ret==0){ printf("**Fatal error when receiving name.**\n"); return NULL; } // error
         player->name = strdup(game->recvBuffer);
-        printf("√ Player %s joined game.\n", player->name);
+        printf("√ Player %s joined game with in fd %d and out fd %d.\n", player->name, player->in, player->out);
     }
     return game;
 }
@@ -393,7 +412,7 @@ int main(int argc, const char * argv[]) {
         for (int i2 = 0; i2 < playersPerGroup*2; i2+=2){
             outs[i2/2] = open(argv[i2+fdIndex], O_WRONLY);
             printf("Opened FIFO for writing: %s\n", argv[i2+fdIndex]);
-            ins[i2/2+1] = open(argv[i2+fdIndex+1], O_RDONLY);
+            ins[i2/2] = open(argv[i2+fdIndex+1], O_RDONLY);
             printf("Opened FIFO for reading: %s\n", argv[i2+fdIndex+1]);
         }
         fdIndex+=2*playersPerGroup;

@@ -391,7 +391,9 @@ int main(int argc, const char * argv[]) {
         int* ins = emalloc(sizeof(int)*playersPerGroup);
         for (int i2 = 0; i2 < playersPerGroup; i2++){
             outs[i2] = open(argv[i2+fdIndex], O_WRONLY);
+            printf("Opened FIFO for writing: %s\n", argv[i2+fdIndex]);
             ins[i2+1] = open(argv[i2+fdIndex+1], O_RDONLY);
+            printf("Opened FIFO for reading: %s\n", argv[i2+fdIndex+1]);
         }
         fdIndex+=2*playersPerGroup;
         arg->threadNo = i;

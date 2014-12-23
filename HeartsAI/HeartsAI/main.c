@@ -76,7 +76,7 @@ char* getName(){ // Return the bot's name, must be unique, must be null-terminat
     /* v YOUR CODE HERE (REPLACE DEFAULT) v */
     // Generates a random name...v
     srand((unsigned int)time(NULL));
-    for (int i = 0; i<MAX_NAME_LENGTH-2; i++){
+    for (int i = 0; i<MAX_NAME_LENGTH-1; i++){
         name[i] = 'a' + rand()%20;
     }
     //...^
@@ -123,9 +123,27 @@ int handlePlay(int* playerID, int* numPlayers, int* firstPlayer, int* turn, int*
      - card** trick: The trick (aka the cards on the table), an array of cards
      */
     
-    /* v YOUR CODE HERE v */
-    //...
-    /* ^ YOUR CODE HERE ^ */
+    /* v YOUR CODE HERE (REPLACE DEFAULT) v */
+    // Play _any_ valid card in the hand...v
+    srand((unsigned int)time(NULL));
+    card checkCard;
+    int ret = -1;
+    for (int i = 0; i<MAX_CARDS_PER_PLAYER; i++){
+        checkCard = *hand[i];
+        if (checkCard!=NULL_CARD){
+            if (*firstPlayer == *playerID){
+                if (!heartsBroken || suitOf(checkCard)!=suit_hearts){ ret = i; break; }
+            }
+            else{
+                if (suitOf(checkCard)==*currentSuit){ ret = i; break; }
+                else if (i == MAX_CARDS_PER_PLAYER-1 || hand[i+1] == NULL_CARD){ // We're void.
+                    ret = i; break;
+                }
+            }
+        }
+    }
+    //...^
+    /* ^ YOUR CODE HERE (REPLACE DEFAULT) ^ */
     
     return -1;
 }

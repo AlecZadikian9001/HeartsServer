@@ -171,18 +171,18 @@ int main(int argc, const char * argv[]) {
     sprintf(outPath, "/tmp/%sOut", name);
     int fifoOut = mkfifo(outPath, S_IWUSR | S_IRUSR | S_IRGRP | S_IROTH);
     int fifoIn = mkfifo(inPath, S_IWUSR | S_IRUSR | S_IRGRP | S_IROTH);
-    int out = open(outPath, O_WRONLY);
-    if (out==-1){
-        printf("***ERROR OPENING OUT FILE, STOPPING***\n");
-        error = true;
-    }
-    else printf("Opened out pipe at %s\n", outPath);
     int in = open(inPath, O_RDONLY);
     if (in==-1){
         printf("***ERROR OPENING IN FILE, STOPPING***\n");
         error = true;
     }
     else printf("Opened in pipe at %s\n", inPath);
+    int out = open(outPath, O_WRONLY);
+    if (out==-1){
+        printf("***ERROR OPENING OUT FILE, STOPPING***\n");
+        error = true;
+    }
+    else printf("Opened out pipe at %s\n", outPath);
     if (error) exit(1);
     //...^
     

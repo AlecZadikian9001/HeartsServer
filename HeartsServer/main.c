@@ -60,11 +60,11 @@ typedef enum{
 #define DECK_SIZE (52)
 #define MIN_PLAYERS (3)
 #define MAX_PLAYERS (6)
-#define MAX_CARDS_PER_PLAYER (DECK_SIZE/MAX_PLAYERS)
+#define MAX_CARDS_PER_PLAYER (DECK_SIZE/MIN_PLAYERS)
 typedef int card; // card value = rank*RANK_PRIME + suit*SUIT_PRIME
 // Communcation constants ===vv
 #define MAX_NAME_LENGTH (16)
-#define SEND_BUFFER_LEN (8 + MAX_CARDS_PER_PLAYER*3)
+#define SEND_BUFFER_LEN (10 + MAX_CARDS_PER_PLAYER*3)
 #define RECV_BUFFER_LEN (4 + MAX_NAME_LENGTH)
 // ===^^
 struct Player{
@@ -74,7 +74,7 @@ struct Player{
     //char sendBuffer[SEND_BUFFER_LEN];
     //char recvBuffer[RECV_BUFFER_LEN];
     uint64_t score; // The player's score
-    card hand[MAX_CARDS_PER_PLAYER]; // The player's hand.
+    card* hand; // The player's hand.
     bool heartsVoid; // Is this guy void on... hearts (for optimization purposes)?
     bool clubsVoid; // ... clubs?
     bool diamondsVoid; // ... diamonds?
@@ -89,27 +89,29 @@ struct Game{
     int turn; // Whose turn is it? This is an index in players.
     int winner; // Player who is currently poised to take the trick.
     card trick[MAX_PLAYERS]; // cards on table
-    int cardsPlayed; // number of cards played this trick
-    int trickNo; // the trick number (starts at 0)
+    int cardsPlayed; // Number of cards played this trick
+    int trickNo; // The trick number (starts at 0)
     bool heartsDropped; // Have hearts been dropped?
 };
 // ===^^
 
-ReturnCode handlePlay(struct Game* game, int cardIndex){
+ReturnCode handlePlay(struct Game* game, int firstPlayer, int cardIndex){
     struct Player* player = game->players[game->turn];
     card playedCard = player->hand[cardIndex];
     Suit playedSuit = suitOf(playedCard);
     Rank playedRank = rankOf(playedCard);
-    Suit firstSuit = suitOf(game->trick[0]);
-    Rank firstRank = rankOf(game->trick[0]);
-    if (player->hand[cardIndex] == NULL_CARD) return RET_INPUT_ERROR;
+    Suit firstSuit = suitOf(game->trick[firstPlayer]);
+    Rank firstRank = rankOf(game->trick[firstPlayer]);
+    if (playedCard == NULL_CARD){
+        return RET_INPUT_ERROR;
+    }
     player->hand[cardIndex] = NULL_CARD;
     // Validation...v
-    if (game->cardsPlayed == 0){
+    if (game->cardsPlayed == 0 && game->trickNo == 0){
         if (playedCard != makeCard(suit_clubs, rank_2)) return RET_INPUT_ERROR; // first player must play 2 of clubs
         if (suitOf(playedCard) == suit_hearts || playedCard == makeCard(suit_spades, rank_Q)){
             // TODO Fix this. The player is allowed to play hearts, but it just won't count for points.
-            return RET_INPUT_ERROR; // friendly trick; no hearts or queen of spades
+            //return RET_INPUT_ERROR; // friendly trick; no hearts or queen of spades
         }
     }
     if (!game->heartsDropped && game->cardsPlayed==0 && suitOf(playedCard) == suit_hearts){
@@ -153,6 +155,7 @@ ReturnCode handlePlay(struct Game* game, int cardIndex){
         }
         struct Player* winner = game->players[game->winner];
         winner->score += score;
+        //game->trickNo++;
         game->turn = game->winner; // this player controls
     }
     return RET_NO_ERROR;
@@ -187,15 +190,25 @@ ReturnCode runNewRound(struct Game* game){
     bzero(deck, sizeof(card)*DECK_SIZE);
     int index;
     bool isUp;
+    srand((unsigned int)time(NULL));
     for (Suit suit = suit_start+1; suit < suit_end; suit++){
         for (Rank rank = rank_start+1; rank < rank_end; rank++){
-            if (suit == suit_clubs && rank!=2 && rank-2 <= discarded) break;
+            if (suit == suit_clubs && rank!=2 && rank-2 <= discarded){
+                break;
+            }
             index = rand() % DECK_SIZE;
             if (deck[index]!=NULL_CARD){
                 isUp = rand()%2;
                 while (1){
-                    index = (isUp?(index + 1):(index - 1)) % DECK_SIZE;
-                    if (deck[index]==0) break;
+                    if (isUp){
+                        index++;
+                        if (index >= DECK_SIZE) index-=DECK_SIZE;
+                    }
+                    else{
+                        index--;
+                        if (index < 0) index+=DECK_SIZE;
+                    }
+                    if (deck[index]==NULL_CARD) break;
                 }
             }
             deck[index] = makeCard(suit, rank);
@@ -217,6 +230,7 @@ ReturnCode runNewRound(struct Game* game){
             while (deck[deckIndex] == NULL_CARD) deckIndex++;
             player->hand[i] = deck[deckIndex];
             if (deck[deckIndex] == makeCard(suit_clubs, rank_2)) game->turn = playerIndex; // make the guy with the 2 of clubs go first
+            deckIndex++;
         }
     }
     //...^
@@ -224,9 +238,10 @@ ReturnCode runNewRound(struct Game* game){
     // Tell players that the game is starting...v
     char handBuffer[3];
     int addedLen;
+    int firstPlayer = game->turn;
     for (int playerIndex = 0; playerIndex < game->numPlayers; playerIndex++){
         player = game->players[playerIndex];
-        sprintf(game->sendBuffer, ":%d,%d,%d,", game->numPlayers, playerIndex, game->turn);
+        sprintf(game->sendBuffer, ":%d,%d,%d,", game->numPlayers, playerIndex, firstPlayer);
         int bufIndex = strlen(game->sendBuffer);
         int cardsPerPlayer = game->deckSize / game->numPlayers;
         for (int handIndex = 0; handIndex < cardsPerPlayer; handIndex++){
@@ -237,9 +252,10 @@ ReturnCode runNewRound(struct Game* game){
             game->sendBuffer[bufIndex] = ',';
             bufIndex++;
         }
+        bufIndex--;
         game->sendBuffer[bufIndex] = '\0';
         // By now, sendBuffer will be ":numPlayers,playerID,turn,hand1,hand2,hand3,...handN"
-        int ret = cTalkSend(player->out, game->sendBuffer, SEND_BUFFER_LEN); // notify each player that the game is starting, how many players are in, the player's ID number [0, numPlayers-1], whose turn it is, and their hands
+        int ret = cTalkSend(player->out, game->sendBuffer, strlen(game->sendBuffer)+1); // notify each player that the game is starting, how many players are in, the player's ID number [0, numPlayers-1], whose turn it is, and their hands
         if (ret==0){
             return RET_NETWORK_ERROR;
         }
@@ -249,6 +265,7 @@ ReturnCode runNewRound(struct Game* game){
     //Play...v
     game->heartsDropped = false;
     game->winner = 0;
+    int lastTurn;
     while (game->trickNo < game->deckSize / game->numPlayers){
         memset(game->trick, NULL_CARD, MAX_PLAYERS*sizeof(card));
         game->cardsPlayed = 0;
@@ -257,12 +274,13 @@ ReturnCode runNewRound(struct Game* game){
             if (play==RET_NETWORK_ERROR){
                 return RET_NETWORK_ERROR;
             }
-            if (handlePlay(game, play) != RET_NO_ERROR){
+            lastTurn = game->turn;
+            if (handlePlay(game, firstPlayer, play) != RET_NO_ERROR){
                 return RET_INPUT_ERROR;
             }
             for (int playerIndex = 0; playerIndex < game->numPlayers; playerIndex++){
-                if (playerIndex != game->turn){
-                    int ret = notifyPlayerOfMove(game->players[playerIndex], game->turn, game->trick[game->cardsPlayed-1], game->sendBuffer);
+                if (playerIndex != lastTurn){
+                    int ret = notifyPlayerOfMove(game->players[playerIndex], lastTurn, game->trick[lastTurn], game->sendBuffer);
                     if (ret!=RET_NO_ERROR){
                         return ret;
                     }
@@ -288,6 +306,8 @@ struct Game* createGame(int numPlayers, int* ins, int* outs, char* sendBuffer, c
         struct Player* player = emalloc(sizeof(struct Player));
         player->in = ins[i];
         player->out = outs[i];
+        player->hand = emalloc(sizeof(card)*(DECK_SIZE/numPlayers));
+        memset(player->hand, NULL_CARD, sizeof(card)*(DECK_SIZE/numPlayers));
         game->players[i] = player;
         int ret = cTalkSend(player->out, "@", 2); // Ask for the player's name
         if (ret==0){ printf("**Fatal error when asking for name.**\n"); return NULL; } // error
@@ -302,6 +322,7 @@ struct Game* createGame(int numPlayers, int* ins, int* outs, char* sendBuffer, c
 void freeGame(struct Game* game){
     for (int i = 0; i<game->numPlayers; i++){
         efree(game->players[i]->name);
+        efree(game->players[i]->hand);
         efree(game->players[i]);
     }
     efree(game->sendBuffer);
@@ -315,10 +336,14 @@ struct ThreadArg{
     uint64_t numTests; // Number of tests (game rounds) to run
     int* ins; // Input fds
     int* outs; // Output fds
+    bool* start; // Whether or not to start the tests
 };
 
 void *gameThread(void *arg){ // One thread is used to one test one group.
     struct ThreadArg* threadArg = arg;
+    while (!*(threadArg->start)){
+        usleep(5000);
+    }
     char* sendBuffer = emalloc(SEND_BUFFER_LEN);
     char* recvBuffer = emalloc(RECV_BUFFER_LEN);
     struct Game* game = createGame(threadArg->numPlayers, threadArg->ins, threadArg->outs, sendBuffer, recvBuffer);
@@ -368,6 +393,7 @@ int main(int argc, const char * argv[]) {
      */
     //...^
     // Take and validate args...V
+    logLevel = LOG_FULL;
     if (argc<3){
         printf(N00B_ALERT);
         exit(0);
@@ -402,8 +428,10 @@ int main(int argc, const char * argv[]) {
     }
     //...^
     // Make and run threads...v
+    printf("Starting Hearts server with %d players, %d players per group, and %llu tests.\n", numPlayers, playersPerGroup, numTests);
     int numThreads = numPlayers/playersPerGroup;
     int fdIndex = 4;
+    bool isRunningTests = false;
     for (int i = 0; i < numThreads; i++){
         pthread_t thread;
         struct ThreadArg* arg = emalloc(sizeof(struct ThreadArg));
@@ -421,12 +449,17 @@ int main(int argc, const char * argv[]) {
         arg->numTests = numTests;
         arg->outs = outs;
         arg->ins = ins;
+        arg->start = &isRunningTests;
         if (pthread_create(&thread, NULL, gameThread, (void*) arg) != 0){
             if (logLevel >= LOG_ERROR) printf("***FATAL ERROR: UNABLE TO CREATE A THREAD, RAGEQUITTING***\n");
             exit(0);
         }
         printf("Created thread %d.\n", i);
     }
+    printf("All pipes connected and ready. Press RETURN to start the tests... ");
+    char keyboardBuf[2];
+    fgets(keyboardBuf, 2, stdin);
+    isRunningTests = true;
     pause();
     //...^
     return 0;

@@ -59,7 +59,7 @@ size_t cTalkRecv(int fd, unsigned char* buffer, size_t bufferLen){
     int i = 0;
     while (!end){
         recvLength = read(fd, buffer, sizeof(unsigned char));
-        printf("Incoming data of length %lu: %s", recvLength, buffer);
+        //printf("Incoming data of length %lu: %s", recvLength, buffer);
         if (recvLength<=0) return 0;
         end = ((buffer[0] >> 7) == 0);
         if (!end) buffer[0] &= ~(1 << 7);

@@ -73,16 +73,24 @@ char* nameOfSuit(suit suit){
 
 /*
  getName() and handlePlay() are the only two functions you will need to edit to create your AI.
+ You may also need some persistent variables for your AI's calculations. For simplicity, use global variables (even though they're "evil").
  It should be doable just by editing the code within the "YOUR CODE HERE" commented areas.
  
  vvv
  */
 
+// Global variables...v
+/* v YOUR CODE HERE v */
+
+/* ^ YOUR CODE HERE ^ */
+//...^
+
 char* getName(){ // Return the bot's name, must be unique, must be null-terminated
-    char* name = emalloc(MAX_NAME_LENGTH);
+    char* name;
     
     /* v YOUR CODE HERE (REPLACE DEFAULT) v */
     // Generates a random name...v
+    name = emalloc(MAX_NAME_LENGTH);
     srand((unsigned int)time(NULL));
     for (int i = 0; i<MAX_NAME_LENGTH-1; i++){
         name[i] = 'a' + rand()%20;

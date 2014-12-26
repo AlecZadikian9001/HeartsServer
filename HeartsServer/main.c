@@ -67,6 +67,7 @@ typedef int card; // card value = rank*RANK_PRIME + suit*SUIT_PRIME
 #define MAX_NAME_LENGTH (16)
 #define SEND_BUFFER_LEN (10 + MAX_CARDS_PER_PLAYER*3)
 #define RECV_BUFFER_LEN (4 + MAX_NAME_LENGTH)
+#define DEBUG_PRINT if (0) printf
 // ===^^
 struct Player{
     char* name; // ASCII name of player (example: "Alec_Z_Bot")
@@ -113,7 +114,7 @@ ReturnCode handlePlay(struct Game* game, int cardIndex){
     Rank playedRank = rankOf(playedCard);
     Suit firstSuit = suitOf(game->trick[game->firstPlayer]);
     Rank highestRank = rankOf(game->trick[game->winner]);
-    printf("%s is playing the %d of %s.\n", player->name, playedRank+1, nameOfSuit(playedSuit));
+    DEBUG_PRINT("%s is playing the %d of %s.\n", player->name, playedRank+1, nameOfSuit(playedSuit));
     if (!isValidCard(playedCard)){
         return RET_INPUT_ERROR;
     }
@@ -167,7 +168,7 @@ ReturnCode handlePlay(struct Game* game, int cardIndex){
         else score = 0;
         game->turn = game->winner; // this player controls
         game->firstPlayer = game->turn;
-        printf("%s won the trick for %d points.\n", winner->name, score);
+        DEBUG_PRINT("%s won the trick for %d points.\n", winner->name, score);
     }
     return RET_NO_ERROR;
 }
@@ -237,12 +238,15 @@ ReturnCode runNewRound(struct Game* game){
         player->clubsVoid = false;
         player->diamondsVoid = false;
         player->spadesVoid = false;
+        DEBUG_PRINT("Cards for %s: ", game->players[playerIndex]->name);
         for (int i = 0; i<cardsPerPlayer; i++){
             while (deck[deckIndex] == NULL_CARD) deckIndex++;
             player->hand[i] = deck[deckIndex];
+            DEBUG_PRINT("%d of %s, ", rankOf(deck[deckIndex])+1, nameOfSuit(suitOf(deck[deckIndex])));
             if (deck[deckIndex] == makeCard(suit_clubs, rank_2)) game->turn = playerIndex; // make the guy with the 2 of clubs go first
             deckIndex++;
         }
+        DEBUG_PRINT("\n");
     }
     //...^
     
@@ -277,7 +281,9 @@ ReturnCode runNewRound(struct Game* game){
     game->heartsDropped = false;
     game->winner = 0;
     int lastTurn;
-    while (game->trickNo < game->deckSize / game->numPlayers){
+    int numTricks = game->deckSize / game->numPlayers;
+    DEBUG_PRINT("Starting round with %d tricks.\n", numTricks);
+    while (game->trickNo+1 < numTricks){
         memset(game->trick, NULL_CARD, MAX_PLAYERS*sizeof(card));
         game->cardsPlayed = 0;
         while (game->cardsPlayed < game->numPlayers){
@@ -363,6 +369,7 @@ void *gameThread(void *arg){ // One thread is used to one test one group.
         printf("***GAME THREAD %d IS STOPPING DUE TO FATAL ERROR CREATING GAME***\n", threadArg->threadNo);
     }
     ReturnCode ret;
+    printf("Thread %d running tests...\n", threadArg->threadNo);
     for (uint64_t i = 0; i<threadArg->numTests; i++){
         ret = runNewRound(game);
         if (ret!=RET_NO_ERROR){
@@ -370,11 +377,11 @@ void *gameThread(void *arg){ // One thread is used to one test one group.
             break;
         }
     }
-    printf("Thread %d finished =====v\n", threadArg->threadNo);
+    printf("\n=== Thread %d finished ===\n========================v\n", threadArg->threadNo);
     for (int i = 0; i<threadArg->numPlayers; i++){
         printf("%s scored %llu.\n", game->players[i]->name, game->players[i]->score);
     }
-    printf("========================^\n");
+    printf("========================^\n\n");
     for (int i = 0; i<threadArg->numPlayers; i++){
         cTalkSend(threadArg->outs[i], ";", 2);
     }
@@ -417,7 +424,7 @@ int main(int argc, const char * argv[]) {
         exit(0);
     }
     int playersPerGroup = atoi(argv[2]);
-    if (numPlayers < MIN_PLAYERS || numPlayers > MAX_PLAYERS){
+    if (playersPerGroup < MIN_PLAYERS || playersPerGroup > MAX_PLAYERS){
         printf("Invalid players per group specified; must be within [%d, %d].\n", MIN_PLAYERS, MAX_PLAYERS);
         printf(N00B_ALERT);
         exit(0);

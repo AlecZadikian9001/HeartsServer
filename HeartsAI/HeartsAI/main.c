@@ -112,29 +112,32 @@ int handlePlay(int* playerID, int* numPlayers, int* firstPlayer, int* turn, int*
         memset(trick, NULL_CARD, MAX_PLAYERS*sizeof(card)); // Reset the trick array
     }
     trick[*turn] = *currentCard;
-    if (suitOf(*currentCard)==suit_hearts) *heartsBroken = true;
-    if (rankOf(*currentCard) > *highestRank){
+    if (suitOf(*currentCard)==suit_hearts || *currentCard == makeCard(suit_spades, rank_Q)) *heartsBroken = true;
+    if (suitOf(*currentCard) == *currentSuit && rankOf(*currentCard) > *highestRank){
         *highestRank = rankOf(*currentCard);
         *winner = *turn;
     }
     int temp1 = *firstPlayer-1;
     if (temp1<0) temp1+=*numPlayers;
+    bool isItMyTurn = false;
     if (*turn == temp1){ // Last card in trick
         *firstPlayer = *winner; // Set the first player of the next trick to the winner
+        if (*firstPlayer == *playerID) isItMyTurn = true;
     }
     int playerBeforeMe = *playerID-1;
     if (playerBeforeMe < 0) playerBeforeMe += *numPlayers;
-    printf("Player %d just played the %d of %s, player %d owns the trick, player %d went first, the trick suit is %s, and the highest card is a %d.\n", *turn, rankOf(*currentCard)+1, nameOfSuit(suitOf(*currentCard)), *winner, *firstPlayer, nameOfSuit(*currentSuit), *highestRank+1);
+    if (playerBeforeMe == *turn) isItMyTurn = true;
+    //printf("Player %d just played the %d of %s, player %d owns the trick, player %d went first, the trick suit is %s, and the highest card is a %d.\n", *turn, rankOf(*currentCard)+1, nameOfSuit(suitOf(*currentCard)), *winner, *firstPlayer, nameOfSuit(*currentSuit), *highestRank+1);
     //...^
     
     /*
      This is where you write your AI's logic. This function will be called each turn in order.
      By the end of the code you write, int ret will represent the index of the card that you want to play (-1 if not decided yet).
-     At least one of the calls of handlePlay must return a card index (i.e. not -1) before it is the player's turn.
+     At least one of the calls (not necessarily the last) of handlePlay must return a card index (i.e. not -1) before it is the player's turn.
      
      At this point, you have the following pointers to variables work with when making your AI's logic:
+     - bool isItMyTurn: Will it be your AI's turn next? If so, and if you haven't already chosen a move, you need to choose one now.
      - int* playerID: Your AI's player ID
-     - int playerBeforeMe: The ID of the player before your AI (useful if you only want to pick a card when it's about to be your turn)
      - int* turn: The ID fo the player who just went
      - int* firstPlayer: The ID of the player who began the trick
      - card* currentCard: The card that was just played
@@ -149,37 +152,57 @@ int handlePlay(int* playerID, int* numPlayers, int* firstPlayer, int* turn, int*
     int ret = -1;
     
     /* v YOUR CODE HERE (REPLACE DEFAULT) v */
-    // Play _any_ valid card in the hand if the player before you just went (and it's about to be your turn)...v
-    if (*turn == playerBeforeMe){
-        srand((unsigned int)time(NULL));
+    // Play _any_ valid card in the hand if it's our turn next...v
+    if (isItMyTurn){
+        bool isVoid = false;
         card checkCard;
         for (int i = 0; i<MAX_CARDS_PER_PLAYER; i++){
             checkCard = hand[i];
             if (checkCard!=NULL_CARD){
                 if (*firstPlayer == *playerID){
-                    printf("This is a new hand.\n");
-                    if (!heartsBroken || suitOf(checkCard)!=suit_hearts){ ret = i; break; }
+                    //printf("This is a new hand.\n");
+                    if (*heartsBroken==true || suitOf(checkCard)!=suit_hearts){ ret = i; break; }
                 }
                 else{
-                    if (suitOf(checkCard)==*currentSuit){ ret = i; break; }
-                    else if (i == MAX_CARDS_PER_PLAYER-1 || hand[i+1] == NULL_CARD){ // We're void.
-                        ret = i; break;
-                    }
+                    if (isVoid){ ret = i; break; }
+                    if (suitOf(checkCard) == *currentSuit){ ret = i; break; }
                 }
+            }
+            if (i == MAX_CARDS_PER_PLAYER-1){
+                if (isVoid){
+                    printf("***CAN'T FIND A VALID CARD TO PLAY! RAGEQUITTING!***\n");
+                    printf("Player %d just played the %d of %s, player %d owns the trick, player %d went first, the trick suit is %s, heartsBroken = %d and the highest card is a %d.\n", *turn, rankOf(*currentCard)+1, nameOfSuit(suitOf(*currentCard)), *winner, *firstPlayer, nameOfSuit(*currentSuit), *heartsBroken, *highestRank+1);
+                    printf("Trick: ");
+                    for (int i = 0; i<MAX_PLAYERS; i++){
+                        printf("%d of %s, ", rankOf(trick[i])+1, nameOfSuit(suitOf(trick[i])));
+                    }
+                    printf("\n");
+                    printf("Hand: ");
+                    for (int i = 0; i<MAX_CARDS_PER_PLAYER; i++){
+                        printf("%d of %s, ", rankOf(hand[i])+1, nameOfSuit(suitOf(hand[i])));
+                    }
+                    printf("\n");
+                    exit(1);
+                }
+                isVoid = true;
+                i = -1;
             }
         }
     }
     //...^
     /* ^ YOUR CODE HERE (REPLACE DEFAULT) ^ */
     
+    if (*turn == temp1){ // Last card in trick
+        *turn = *winner;
+    }
+    
     if (ret!=-1){
         //printf("Your AI has chosen to play %d (index %d) (the %d of %s)...\n", hand[ret], ret, rankOf(hand[ret])+1, nameOfSuit(suitOf(hand[ret])));
         //if (!isValidCard(hand[ret])) printf("***YOUR AI IS PLAYING A NULL CARD; GG no re, expect a crash soon.***\n");
-        hand[ret] = NULL_CARD;
     }
     else{
         //printf("Your AI has not chosen which card it wants to play yet...\n");
-        if (*turn == playerBeforeMe) printf("***IT'S ABOUT TO BE YOUR TURN, AND YOU HAVE NOT CHOSEN A CARD TO PLAY! GG no re; expect a crash soon.***\n");
+        if (isItMyTurn) printf("***IT'S ABOUT TO BE YOUR TURN, AND YOU HAVE NOT CHOSEN A CARD TO PLAY! GG no re; expect a crash soon.***\n");
     }
     return ret;
 }
@@ -271,7 +294,7 @@ int main(int argc, const char * argv[]) {
             switch (recvBuffer[0]){
                 case ']':{ // Card Played
                     // Format: "]player,card"
-                    printf("Server is notifying AI of play.\n");
+                    //printf("Server is notifying AI of play.\n");
                     turn = atoi(recvBuffer+1);
                     scanIndex = 1;
                     while (recvBuffer[scanIndex]!=',') scanIndex++;
@@ -284,16 +307,29 @@ int main(int argc, const char * argv[]) {
                 case '[':{ // Asking for Play
                     if (nextMove==-1){
                         printf("***ERROR: It is your AI's turn, and it has not chosen a move. Ragequitting.***\n");
+                        printf("Player %d just played the %d of %s, player %d owns the trick, player %d went first, the trick suit is %s, heartsBroken = %d, and the highest card is a %d.\n", turn, rankOf(currentCard)+1, nameOfSuit(suitOf(currentCard)), winner, firstPlayer, nameOfSuit(currentSuit), heartsBroken, highestRank+1);
+                        printf("Trick: ");
+                        for (int i = 0; i<MAX_PLAYERS; i++){
+                            printf("%d of %s, ", rankOf(trick[i])+1, nameOfSuit(suitOf(trick[i])));
+                        }
+                        printf("\n");
+                        printf("Hand: ");
+                        for (int i = 0; i<MAX_CARDS_PER_PLAYER; i++){
+                            printf("%d of %s, ", rankOf(hand[i])+1, nameOfSuit(suitOf(hand[i])));
+                        }
+                        printf("\n");
                         exit(1);
                     }
                     if (!isValidCard(hand[nextMove])){
-                        printf("***YOUR AI IS PLAYING AN INVALID CARD. EXPECT A CRASH.***\n");
+                        printf("***YOUR AI IS PLAYING AN INVALID CARD AT INDEX %d. EXPECT A CRASH.***\n", nextMove);
                     }
-                    printf("You play %d (index %d) (the %d of %s).\n", hand[nextMove], nextMove, rankOf(hand[nextMove])+1, nameOfSuit(suitOf(hand[nextMove])));
+                    //printf("You play %d (index %d) (the %d of %s).\n", hand[nextMove], nextMove, rankOf(hand[nextMove])+1, nameOfSuit(suitOf(hand[nextMove])));
                     sprintf(sendBuffer, "%d", nextMove);
                     cTalkSend(out, sendBuffer, strlen(sendBuffer)+1);
-                    turn = playerID;
                     currentCard = hand[nextMove];
+                    hand[nextMove] = NULL_CARD;
+                    nextMove = -1;
+                    turn = playerID;
                     temp1 = handlePlay(&playerID, &numPlayers, &firstPlayer, &turn, &winner, &heartsBroken, &currentCard, &currentSuit, &highestRank, hand, trick);
                     if (temp1!=-1) nextMove = temp1;
                     break;
@@ -302,7 +338,7 @@ int main(int argc, const char * argv[]) {
                     // Format: ":numPlayers,playerID,turn,card1,card2,card3,...cardN"
                     
                     // Read input...v
-                    printf("Server is starting new round.\n");
+                    //printf("Server is starting new round.\n");
                     numPlayers = atoi(recvBuffer+1);
                     scanIndex=1;
                     while (recvBuffer[scanIndex]!=',') scanIndex++;
@@ -316,6 +352,7 @@ int main(int argc, const char * argv[]) {
                     memset(trick, NULL_CARD, MAX_PLAYERS*sizeof(card)); // Reset the trick array
                     cardIndex = 0;
                     endScan = false;
+                    //printf("Your hand: ");
                     while (true){
                         while (recvBuffer[scanIndex]!=','){
                             currentChar = recvBuffer[scanIndex];
@@ -332,8 +369,10 @@ int main(int argc, const char * argv[]) {
                         if (endScan) break;
                         scanIndex++;
                         hand[cardIndex] = atoi(recvBuffer+scanIndex);
+                        //printf("%d of %s, ", rankOf(hand[cardIndex])+1, nameOfSuit(suitOf(hand[cardIndex])));
                         cardIndex++;
                     }
+                    //printf("\n");
                     for (; cardIndex<MAX_CARDS_PER_PLAYER; cardIndex++){
                         hand[cardIndex] = NULL_CARD;
                     }

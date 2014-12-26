@@ -114,6 +114,7 @@ ReturnCode handlePlay(struct Game* game, int cardIndex){
     Rank playedRank = rankOf(playedCard);
     Suit firstSuit = suitOf(game->trick[game->firstPlayer]);
     Rank highestRank = rankOf(game->trick[game->winner]);
+    int cardsPerPlayer = (DECK_SIZE/game->numPlayers);
     DEBUG_PRINT("%s is playing the %d of %s.\n", player->name, playedRank+1, nameOfSuit(playedSuit));
     if (!isValidCard(playedCard)){
         return RET_INPUT_ERROR;
@@ -124,7 +125,24 @@ ReturnCode handlePlay(struct Game* game, int cardIndex){
         if (playedCard != makeCard(suit_clubs, rank_2)) return RET_INPUT_ERROR; // first player must play 2 of clubs
     }
     if (!game->heartsDropped && game->cardsPlayed==0 && suitOf(playedCard) == suit_hearts){
-        return RET_INPUT_ERROR; // no starting with hearts before hearts have been dropped
+        // We check later to make sure the player has nothing but hearts...
+        if (!(player->clubsVoid && player->diamondsVoid && player->spadesVoid)){
+            player->spadesVoid = true;
+            player->clubsVoid = true;
+            player->diamondsVoid = true;
+            card checkCard;
+            for (int i = 0; i<cardsPerPlayer; i++){
+                Suit suit = suitOf(player->hand[i]);
+                switch(suit){
+                    case suit_spades:{ player->spadesVoid = false; break; }
+                    case suit_diamonds:{ player->diamondsVoid = false; break; }
+                    case suit_clubs:{ player->clubsVoid = false; break; }
+                }
+            }
+            if (!(player->clubsVoid && player->diamondsVoid && player->spadesVoid)){
+                return RET_INPUT_ERROR; // Player isn't void on everything but hearts, but he tried to lead with hearts before they were broken.
+            }
+        }
     }
     if (game->cardsPlayed!=0){ // then we have to make sure the correct suit is being played
         if (playedSuit != firstSuit){ // if the client is trying to claim a void
@@ -136,7 +154,7 @@ ReturnCode handlePlay(struct Game* game, int cardIndex){
                 case suit_spades:{ excused = player->spadesVoid; break; }
             }
             if (!excused){ // if it's not, we have to check the player's hand
-                for (int i = 0 ; i<MAX_CARDS_PER_PLAYER; i++){
+                for (int i = 0 ; i<cardsPerPlayer; i++){
                     if (suitOf(player->hand[i]) == firstSuit){
                         return RET_INPUT_ERROR; // tried to illegally claim void
                     }

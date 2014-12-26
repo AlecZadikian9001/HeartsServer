@@ -155,13 +155,14 @@ int handlePlay(int* playerID, int* numPlayers, int* firstPlayer, int* turn, int*
     // Play _any_ valid card in the hand if it's our turn next...v
     if (isItMyTurn){
         bool isVoid = false;
+        bool rareHeartsCase = false;
         card checkCard;
         for (int i = 0; i<MAX_CARDS_PER_PLAYER; i++){
             checkCard = hand[i];
             if (checkCard!=NULL_CARD){
                 if (*firstPlayer == *playerID){
                     //printf("This is a new hand.\n");
-                    if (*heartsBroken==true || suitOf(checkCard)!=suit_hearts){ ret = i; break; }
+                    if (*heartsBroken==true || suitOf(checkCard)!=suit_hearts || rareHeartsCase == true){ ret = i; break; }
                 }
                 else{
                     if (isVoid){ ret = i; break; }
@@ -169,7 +170,7 @@ int handlePlay(int* playerID, int* numPlayers, int* firstPlayer, int* turn, int*
                 }
             }
             if (i == MAX_CARDS_PER_PLAYER-1){
-                if (isVoid){
+                if (rareHeartsCase){
                     printf("***CAN'T FIND A VALID CARD TO PLAY! RAGEQUITTING!***\n");
                     printf("Player %d just played the %d of %s, player %d owns the trick, player %d went first, the trick suit is %s, heartsBroken = %d and the highest card is a %d.\n", *turn, rankOf(*currentCard)+1, nameOfSuit(suitOf(*currentCard)), *winner, *firstPlayer, nameOfSuit(*currentSuit), *heartsBroken, *highestRank+1);
                     printf("Trick: ");
@@ -183,6 +184,10 @@ int handlePlay(int* playerID, int* numPlayers, int* firstPlayer, int* turn, int*
                     }
                     printf("\n");
                     exit(1);
+                }
+                if (isVoid){
+                    // This is a rare case. We're void on everything but Hearts, but Hearts aren't broken, and we need to lead.
+                    rareHeartsCase = true;
                 }
                 isVoid = true;
                 i = -1;

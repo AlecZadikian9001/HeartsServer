@@ -57,6 +57,7 @@ typedef enum{
 #define suitOf(card) ((int) (card / SUIT_BASE))
 #define rankOf(card) (card % SUIT_BASE)
 #define makeCard(suit, rank) (SUIT_BASE*RANK_BASE*suit + RANK_BASE*rank)
+#define isValidCard(card) (suitOf(card) > suit_start && suitOf(card) < suit_end && rankOf(card) > rank_start && rankOf(card) < rank_end)
 #define DECK_SIZE (52)
 #define MIN_PLAYERS (3)
 #define MAX_PLAYERS (6)
@@ -95,6 +96,15 @@ struct Game{
 };
 // ===^^
 
+char* nameOfSuit(Suit suit){
+    if (suit==suit_clubs) return "clubs";
+    if (suit==suit_hearts) return "hearts";
+    if (suit==suit_spades) return "spades";
+    if (suit==suit_diamonds) return "diamonds";
+    if (suit==suit_start) return "START_ERROR";
+    return "END_ERROR";
+}
+
 ReturnCode handlePlay(struct Game* game, int firstPlayer, int cardIndex){
     struct Player* player = game->players[game->turn];
     card playedCard = player->hand[cardIndex];
@@ -102,17 +112,14 @@ ReturnCode handlePlay(struct Game* game, int firstPlayer, int cardIndex){
     Rank playedRank = rankOf(playedCard);
     Suit firstSuit = suitOf(game->trick[firstPlayer]);
     Rank firstRank = rankOf(game->trick[firstPlayer]);
-    if (playedCard == NULL_CARD){
+    printf("%s is playing the %d of %s.\n", player->name, playedRank+1, nameOfSuit(playedSuit));
+    if (!isValidCard(playedCard)){
         return RET_INPUT_ERROR;
     }
     player->hand[cardIndex] = NULL_CARD;
     // Validation...v
     if (game->cardsPlayed == 0 && game->trickNo == 0){
         if (playedCard != makeCard(suit_clubs, rank_2)) return RET_INPUT_ERROR; // first player must play 2 of clubs
-        if (suitOf(playedCard) == suit_hearts || playedCard == makeCard(suit_spades, rank_Q)){
-            // TODO Fix this. The player is allowed to play hearts, but it just won't count for points.
-            //return RET_INPUT_ERROR; // friendly trick; no hearts or queen of spades
-        }
     }
     if (!game->heartsDropped && game->cardsPlayed==0 && suitOf(playedCard) == suit_hearts){
         return RET_INPUT_ERROR; // no starting with hearts before hearts have been dropped
@@ -154,8 +161,7 @@ ReturnCode handlePlay(struct Game* game, int firstPlayer, int cardIndex){
             else if (game->trick[i] == makeCard(suit_spades, rank_Q)) score += 13;
         }
         struct Player* winner = game->players[game->winner];
-        winner->score += score;
-        //game->trickNo++;
+        if (!(game->cardsPlayed == 0 && game->trickNo == 0)) winner->score += score; // Only add to score if it's not the first trick of the round
         game->turn = game->winner; // this player controls
     }
     return RET_NO_ERROR;
@@ -288,6 +294,7 @@ ReturnCode runNewRound(struct Game* game){
             }
         }
         game->trickNo++;
+        game->cardsPlayed = 0;
     }
     //...^
     
@@ -393,7 +400,7 @@ int main(int argc, const char * argv[]) {
      */
     //...^
     // Take and validate args...V
-    logLevel = LOG_FULL;
+    logLevel = LOG_ERROR;
     if (argc<3){
         printf(N00B_ALERT);
         exit(0);

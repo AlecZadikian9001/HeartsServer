@@ -53,6 +53,7 @@ typedef enum{
 #define suitOf(card) ((int) (card / SUIT_BASE))
 #define rankOf(card) (card % SUIT_BASE)
 #define makeCard(suit, rank) (SUIT_BASE*RANK_BASE*suit + RANK_BASE*rank)
+#define isValidCard(card) (suitOf(card) > suit_start && suitOf(card) < suit_end && rankOf(card) > rank_start && rankOf(card) < rank_end)
 #define DECK_SIZE (52)
 #define MIN_PLAYERS (3)
 #define MAX_PLAYERS (6)
@@ -68,7 +69,8 @@ char* nameOfSuit(suit suit){
     if (suit==suit_hearts) return "hearts";
     if (suit==suit_spades) return "spades";
     if (suit==suit_diamonds) return "diamonds";
-    return "ERROR";
+    if (suit==suit_start) return "START_ERROR";
+    return "END_ERROR";
 }
 
 /*
@@ -122,7 +124,7 @@ int handlePlay(int* playerID, int* numPlayers, int* firstPlayer, int* turn, int*
     }
     int playerBeforeMe = *playerID-1;
     if (playerBeforeMe < 0) playerBeforeMe += *numPlayers;
-    printf("Handling play: you're player %d, player %d just went, player %d owns the trick, the trick suit is %s, the highest card is a %d, and a %d of %s was just played.\n", *playerID, *turn, *winner, nameOfSuit(*currentSuit), *highestRank+1, rankOf(*currentCard)+1, nameOfSuit(suitOf(*currentCard)));
+    printf("Player %d just played the %d of %s, player %d owns the trick, player %d went first, the trick suit is %s, and the highest card is a %d.\n", *turn, rankOf(*currentCard)+1, nameOfSuit(suitOf(*currentCard)), *winner, *firstPlayer, nameOfSuit(*currentSuit), *highestRank+1);
     //...^
     
     /*
@@ -155,6 +157,7 @@ int handlePlay(int* playerID, int* numPlayers, int* firstPlayer, int* turn, int*
             checkCard = hand[i];
             if (checkCard!=NULL_CARD){
                 if (*firstPlayer == *playerID){
+                    printf("This is a new hand.\n");
                     if (!heartsBroken || suitOf(checkCard)!=suit_hearts){ ret = i; break; }
                 }
                 else{
@@ -170,11 +173,12 @@ int handlePlay(int* playerID, int* numPlayers, int* firstPlayer, int* turn, int*
     /* ^ YOUR CODE HERE (REPLACE DEFAULT) ^ */
     
     if (ret!=-1){
-        printf("Your AI has chosen to play the %d of %s...\n", rankOf(hand[ret])+1, nameOfSuit(suitOf(hand[ret])));
-        if (hand[ret]==NULL_CARD) printf("***YOUR AI IS PLAYING A NULL CARD; GG no re, expect a crash soon.***\n");
+        printf("Your AI has chosen to play %d (index %d) (the %d of %s)...\n", hand[ret], ret, rankOf(hand[ret])+1, nameOfSuit(suitOf(hand[ret])));
+        if (!isValidCard(hand[ret])) printf("***YOUR AI IS PLAYING A NULL CARD; GG no re, expect a crash soon.***\n");
+        hand[ret] = NULL_CARD;
     }
     else{
-        printf("Your AI has not chosen which card it wants to play yet...\n");
+        //printf("Your AI has not chosen which card it wants to play yet...\n");
         if (*turn == playerBeforeMe) printf("***IT'S ABOUT TO BE YOUR TURN, AND YOU HAVE NOT CHOSEN A CARD TO PLAY! GG no re; expect a crash soon.***\n");
     }
     return ret;
@@ -188,7 +192,7 @@ int handlePlay(int* playerID, int* numPlayers, int* firstPlayer, int* turn, int*
  */
 
 int main(int argc, const char * argv[]) {
-    logLevel = LOG_FULL;
+    logLevel = LOG_ERROR;
     // Get name...v
     char* name;
     if (argc==2) name = argv[1];
@@ -278,11 +282,14 @@ int main(int argc, const char * argv[]) {
                     break;
                 }
                 case '[':{ // Asking for Play
-                    printf("Server is asking for play.\n");
                     if (nextMove==-1){
                         printf("***ERROR: It is your AI's turn, and it has not chosen a move. Ragequitting.***\n");
                         exit(1);
                     }
+                    if (!isValidCard(hand[nextMove])){
+                        printf("***YOUR AI IS PLAYING AN INVALID CARD. EXPECT A CRASH.***\n");
+                    }
+                    printf("You play %d (index %d) (the %d of %s).\n", hand[nextMove], nextMove, rankOf(hand[nextMove])+1, nameOfSuit(suitOf(hand[nextMove])));
                     sprintf(sendBuffer, "%d", nextMove);
                     cTalkSend(out, sendBuffer, strlen(sendBuffer)+1);
                     turn = playerID;

@@ -173,8 +173,8 @@ int handlePlay(int* playerID, int* numPlayers, int* firstPlayer, int* turn, int*
     /* ^ YOUR CODE HERE (REPLACE DEFAULT) ^ */
     
     if (ret!=-1){
-        printf("Your AI has chosen to play %d (index %d) (the %d of %s)...\n", hand[ret], ret, rankOf(hand[ret])+1, nameOfSuit(suitOf(hand[ret])));
-        if (!isValidCard(hand[ret])) printf("***YOUR AI IS PLAYING A NULL CARD; GG no re, expect a crash soon.***\n");
+        //printf("Your AI has chosen to play %d (index %d) (the %d of %s)...\n", hand[ret], ret, rankOf(hand[ret])+1, nameOfSuit(suitOf(hand[ret])));
+        //if (!isValidCard(hand[ret])) printf("***YOUR AI IS PLAYING A NULL CARD; GG no re, expect a crash soon.***\n");
         hand[ret] = NULL_CARD;
     }
     else{

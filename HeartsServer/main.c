@@ -87,6 +87,7 @@ struct Game{
     struct Player** players; // Players
     int numPlayers; // [MIN_PLAYERS, MAX_PLAYERS]
     int deckSize; // How many cards in deck?
+    int firstPlayer; // Who went first?
     int turn; // Whose turn is it? This is an index in players.
     int winner; // Player who is currently poised to take the trick.
     card trick[MAX_PLAYERS]; // cards on table
@@ -105,13 +106,13 @@ char* nameOfSuit(Suit suit){
     return "END_ERROR";
 }
 
-ReturnCode handlePlay(struct Game* game, int firstPlayer, int cardIndex){
+ReturnCode handlePlay(struct Game* game, int cardIndex){
     struct Player* player = game->players[game->turn];
     card playedCard = player->hand[cardIndex];
     Suit playedSuit = suitOf(playedCard);
     Rank playedRank = rankOf(playedCard);
-    Suit firstSuit = suitOf(game->trick[firstPlayer]);
-    Rank firstRank = rankOf(game->trick[firstPlayer]);
+    Suit firstSuit = suitOf(game->trick[game->firstPlayer]);
+    Rank highestRank = rankOf(game->trick[game->winner]);
     printf("%s is playing the %d of %s.\n", player->name, playedRank+1, nameOfSuit(playedSuit));
     if (!isValidCard(playedCard)){
         return RET_INPUT_ERROR;
@@ -149,11 +150,12 @@ ReturnCode handlePlay(struct Game* game, int firstPlayer, int cardIndex){
         }
     }
     //...^
+    if (playedSuit == firstSuit && playedRank > highestRank) game->winner = game->turn;
+    //else printf("playedSuit: %d, firstSuit: %d, playedRank: %d, highestRank: %d\n", playedSuit, firstSuit, playedRank, highestRank);
+    if (suitOf(playedCard) == suit_hearts || playedCard == makeCard(suit_spades, rank_Q)) game->heartsDropped = true;
     game->cardsPlayed++;
     game->trick[game->turn] = playedCard;
     game->turn = (game->turn+1) % game->numPlayers;
-    if (playedSuit == firstSuit && playedRank > firstRank) game->winner = game->turn;
-    if (suitOf(playedCard) == suit_hearts || playedCard == makeCard(suit_spades, rank_Q)) game->heartsDropped = true;
     if (game->cardsPlayed >= game->numPlayers){ // last card has been played
         int score = 0;
         for (int i = 0; i<game->numPlayers; i++){
@@ -161,8 +163,11 @@ ReturnCode handlePlay(struct Game* game, int firstPlayer, int cardIndex){
             else if (game->trick[i] == makeCard(suit_spades, rank_Q)) score += 13;
         }
         struct Player* winner = game->players[game->winner];
-        if (!(game->cardsPlayed == 0 && game->trickNo == 0)) winner->score += score; // Only add to score if it's not the first trick of the round
+        if (game->trickNo != 0) winner->score += score; // Only add to score if it's not the first trick of the round
+        else score = 0;
         game->turn = game->winner; // this player controls
+        game->firstPlayer = game->turn;
+        printf("%s won the trick for %d points.\n", winner->name, score);
     }
     return RET_NO_ERROR;
 }
@@ -244,10 +249,10 @@ ReturnCode runNewRound(struct Game* game){
     // Tell players that the game is starting...v
     char handBuffer[3];
     int addedLen;
-    int firstPlayer = game->turn;
+    game->firstPlayer = game->turn;
     for (int playerIndex = 0; playerIndex < game->numPlayers; playerIndex++){
         player = game->players[playerIndex];
-        sprintf(game->sendBuffer, ":%d,%d,%d,", game->numPlayers, playerIndex, firstPlayer);
+        sprintf(game->sendBuffer, ":%d,%d,%d,", game->numPlayers, playerIndex, game->firstPlayer);
         int bufIndex = strlen(game->sendBuffer);
         int cardsPerPlayer = game->deckSize / game->numPlayers;
         for (int handIndex = 0; handIndex < cardsPerPlayer; handIndex++){
@@ -281,7 +286,7 @@ ReturnCode runNewRound(struct Game* game){
                 return RET_NETWORK_ERROR;
             }
             lastTurn = game->turn;
-            if (handlePlay(game, firstPlayer, play) != RET_NO_ERROR){
+            if (handlePlay(game, play) != RET_NO_ERROR){
                 return RET_INPUT_ERROR;
             }
             for (int playerIndex = 0; playerIndex < game->numPlayers; playerIndex++){

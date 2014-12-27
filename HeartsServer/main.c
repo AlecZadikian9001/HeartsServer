@@ -230,7 +230,9 @@ ReturnCode runNewRound(struct Game* game){
     bzero(deck, sizeof(card)*DECK_SIZE);
     int index;
     bool isUp;
-    srand((unsigned int)time(NULL));
+    unsigned int seed = (unsigned int)clock();
+    srand(seed);
+    //printf("Seed: %d\n", seed);
     for (Suit suit = suit_start+1; suit < suit_end; suit++){
         for (Rank rank = rank_start+1; rank < rank_end; rank++){
             if (suit == suit_clubs && rank!=2 && rank-2 <= discarded){
@@ -348,13 +350,13 @@ ReturnCode runNewRound(struct Game* game){
                 printf("*** ERROR: MOON SHOT TWICE ***\n"); // TODO remove debug check
             }
             moonShot = i;
-            //printf("%s shot the moon!\n", game->players[i]->name);
+            printf("%s shot the moon!\n", game->players[i]->name);
             // break; // TODO uncomment to remove debug check
         }
     }
     if (moonShot != -1){
         for (int i = 0; i<game->numPlayers; i++){
-            if (i != moonShot) game->players[i]->score = game->players[i]->score + 20;
+            if (i != moonShot) game->players[i]->score = game->players[i]->score + 26;
         }
     }
     else{

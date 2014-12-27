@@ -13,6 +13,7 @@ Game Rule Notes:{
     2. If there are not 4 players, the lower Clubs besides the Two will be thrown out and will not be dealt out, as we usually do it.
     3. There is no card passing. I know we 5th floor / allies people always do it, but it makes it too complicated. Also, according to Wikipedia, "The basic game of Hearts does not include card passing, but the most common variants do."
     4. If you are void on everything but Hearts, you're about to lead a trick, and Hearts have NOT been broken, you play Hearts anyway, and that breaks Hearts. This is a real rule, but we never knew about it because we never encountered this situation. It's very rare but usually happens at least once when the competition server is running hundreds of thousands of tests.
+    5. If you shoot the moon, everyone except you gains 26 points. I think we sometimes make it 20 points when we play, but Wikipedia says 26.
     
     It is up to your AI to follow the rules. The server validates each move. If your AI cheats, the tests for that group are stopped.
 }

@@ -403,6 +403,10 @@ int main(int argc, const char * argv[]) {
                     
                     break;
                 }
+                case '^':{ //Ping
+                    cTalkSend(out, "^", 2);
+                    printf("Server pinged.\n");
+                }
                 case '@':{ // Asking for Name
                     printf("Server connected and asked for name.\n");
                     sendRet = cTalkSend(out, name, strlen(name)+1); // Send the name.

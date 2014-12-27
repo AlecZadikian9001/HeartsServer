@@ -122,7 +122,9 @@ ReturnCode handlePlay(struct Game* game, int cardIndex){
     player->hand[cardIndex] = NULL_CARD;
     // Validation...v
     if (game->cardsPlayed == 0 && game->trickNo == 0){
-        if (playedCard != makeCard(suit_clubs, rank_2)) return RET_INPUT_ERROR; // first player must play 2 of clubs
+        if (playedCard != makeCard(suit_clubs, rank_2)){
+            return RET_INPUT_ERROR; // first player must play 2 of clubs
+        }
     }
     if (!game->heartsDropped && game->cardsPlayed==0 && suitOf(playedCard) == suit_hearts){
         // We check to make sure the player has nothing but hearts...
@@ -258,7 +260,9 @@ ReturnCode runNewRound(struct Game* game){
         player->spadesVoid = false;
         DEBUG_PRINT("Cards for %s: ", game->players[playerIndex]->name);
         for (int i = 0; i<cardsPerPlayer; i++){
-            while (deck[deckIndex] == NULL_CARD) deckIndex++;
+            while (deck[deckIndex] == NULL_CARD){
+                deckIndex++;
+            }
             player->hand[i] = deck[deckIndex];
             DEBUG_PRINT("%d of %s, ", rankOf(deck[deckIndex])+1, nameOfSuit(suitOf(deck[deckIndex])));
             if (deck[deckIndex] == makeCard(suit_clubs, rank_2)) game->turn = playerIndex; // make the guy with the 2 of clubs go first
@@ -297,7 +301,7 @@ ReturnCode runNewRound(struct Game* game){
     
     //Play...v
     game->heartsDropped = false;
-    game->winner = 0;
+    game->winner = game->firstPlayer;
     int lastTurn;
     int numTricks = game->deckSize / game->numPlayers;
     DEBUG_PRINT("Starting round with %d tricks.\n", numTricks);
@@ -479,6 +483,15 @@ int main(int argc, const char * argv[]) {
             printf("Opened FIFO for writing: %s\n", argv[i2+fdIndex]);
             ins[i2/2] = open(argv[i2+fdIndex+1], O_RDONLY);
             printf("Opened FIFO for reading: %s\n", argv[i2+fdIndex+1]);
+            time_t start, stop;
+            /*
+            unsigned char pingBuffer[2];
+            time(&start);
+            cTalkSend(outs[i2/2], "^", 2);
+            cTalkRecv(ins[i2/2], pingBuffer, 2);
+            time(&stop);
+            printf("Ping for player %d: %f seconds.\n", i2/2, difftime(stop, start));
+             */
         }
         fdIndex+=2*playersPerGroup;
         arg->threadNo = i;

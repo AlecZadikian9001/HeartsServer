@@ -104,7 +104,7 @@ char* getName(){ // Return the bot's name, must be unique, must be null-terminat
     return name;
 }
 
-int handlePlay(int* playerID, int* numPlayers, int* firstPlayer, int* turn, int* winner, bool* heartsBroken, card* currentCard, suit* currentSuit, rank* highestRank, card* hand, card* trick){ // Called every time a card is played by anyone, including the AI. If the AI decides to play a different card based on this, it returns its index in the hand. Otherwise returns -1.
+int handlePlay(int* playerID, int* numPlayers, int* firstPlayer, int* turn, int* winner, bool* heartsBroken, card* currentCard, suit* currentSuit, rank* highestRank, card* hand, card* trick, int* trickNo){ // Called every time a card is played by anyone, including the AI. If the AI decides to play a different card based on this, it returns its index in the hand. Otherwise returns -1.
     // Setup (do not edit)...v
     if (*turn == *firstPlayer){ // New trick
         *currentSuit = suitOf(*currentCard);
@@ -147,6 +147,7 @@ int handlePlay(int* playerID, int* numPlayers, int* firstPlayer, int* turn, int*
      - bool* heartsBroken: Whether or not hearts have been broken this round
      - card* hand: Your AI's hand, an array of cards
      - card* trick: The trick (aka the cards on the table), an array of cards
+     - int trickNo: How many tricks have been played already in this round.
      */
     
     int ret = -1;
@@ -199,6 +200,7 @@ int handlePlay(int* playerID, int* numPlayers, int* firstPlayer, int* turn, int*
     
     if (*turn == temp1){ // Last card in trick
         *turn = *winner;
+        *trickNo = *trickNo + 1;
     }
     
     if (ret!=-1){
@@ -225,7 +227,7 @@ int main(int argc, const char * argv[]) {
     char* name;
     if (argc==2) name = argv[1];
     else name = getName();
-    printf("Starting AI with name %s, recv_buffer_len %d, send_buffer_len %d\n", name, RECV_BUFFER_LEN, SEND_BUFFER_LEN);
+    printf("\n=================================\nStarting AI with name %s\n=================================\n\n", name);
     //...^
     // Create I/O named pipes, and open for reading and writing...v
     bool error = false;
@@ -270,7 +272,6 @@ int main(int argc, const char * argv[]) {
     int cardIndex;
     int temp1;
     int temp2;
-    card currentCard;
     bool endScan;
     char currentChar;
     bool running = true;
@@ -278,6 +279,8 @@ int main(int argc, const char * argv[]) {
     // Card variables...v
     card hand[MAX_CARDS_PER_PLAYER]; // Cards in your AI's hand.
     card trick[MAX_PLAYERS]; // Cards on the table (in order of player ID).
+    card currentCard =  NULL_CARD; // The last card that was played.
+    int trickNo =       -1; // How many tricks have been played this round.
     int playerID =      -1; // This AI's player ID
     int numPlayers =    -1; // Number of players in game
     int firstPlayer =   -1; // Who goes first in this trick?
@@ -293,7 +296,7 @@ int main(int argc, const char * argv[]) {
         if (recvRet==0 || recvRet==-1){
             //printf("**ERROR RECEIVING DATA, STOPPING**\n");
             //exit(1);
-            usleep(5000); // TODO Fix this so it blocks properly!
+            //usleep(5000); // TODO Fix this so it blocks properly!
         }
         else{
             switch (recvBuffer[0]){
@@ -305,14 +308,15 @@ int main(int argc, const char * argv[]) {
                     while (recvBuffer[scanIndex]!=',') scanIndex++;
                     scanIndex++;
                     currentCard = atoi(recvBuffer+scanIndex);
-                    temp1 = handlePlay(&playerID, &numPlayers, &firstPlayer, &turn, &winner, &heartsBroken, &currentCard, &currentSuit, &highestRank, hand, trick);
+                    temp1 = handlePlay(&playerID, &numPlayers, &firstPlayer, &turn, &winner, &heartsBroken, &currentCard, &currentSuit, &highestRank, hand, trick, &trickNo);
                     if (temp1!=-1) nextMove = temp1;
                     break;
                 }
                 case '[':{ // Asking for Play
                     if (nextMove==-1){
                         printf("***ERROR: It is your AI's turn, and it has not chosen a move. Ragequitting.***\n");
-                        printf("Player %d just played the %d of %s, player %d owns the trick, player %d went first, the trick suit is %s, heartsBroken = %d, and the highest card is a %d.\n", turn, rankOf(currentCard)+1, nameOfSuit(suitOf(currentCard)), winner, firstPlayer, nameOfSuit(currentSuit), heartsBroken, highestRank+1);
+                        printf("Player %d just played the %d of %s, player %d owns the trick, player %d went first, the trick suit is %s, heartsBroken = %d, the highest card is a %d, and trickNo is %d.\n", turn, rankOf(currentCard)+1, nameOfSuit(suitOf(currentCard)), winner, firstPlayer, nameOfSuit(currentSuit), heartsBroken, highestRank+1, trickNo);
+                        printf("recvBuffer: %s", recvBuffer);
                         printf("Trick: ");
                         for (int i = 0; i<MAX_PLAYERS; i++){
                             printf("%d of %s, ", rankOf(trick[i])+1, nameOfSuit(suitOf(trick[i])));
@@ -335,13 +339,20 @@ int main(int argc, const char * argv[]) {
                     hand[nextMove] = NULL_CARD;
                     nextMove = -1;
                     turn = playerID;
-                    temp1 = handlePlay(&playerID, &numPlayers, &firstPlayer, &turn, &winner, &heartsBroken, &currentCard, &currentSuit, &highestRank, hand, trick);
+                    temp1 = handlePlay(&playerID, &numPlayers, &firstPlayer, &turn, &winner, &heartsBroken, &currentCard, &currentSuit, &highestRank, hand, trick, &trickNo);
                     if (temp1!=-1) nextMove = temp1;
                     break;
                 }
                 case ':':{ // New Round
                     // Format: ":numPlayers,playerID,turn,card1,card2,card3,...cardN"
-                    
+                    currentCard =  NULL_CARD; // The last card that was played.
+                    trickNo =       -1; // How many tricks have been played this round.
+                    turn =          -1; // Whose turn is it?
+                    nextMove =      -1; // Next move the AI intends to play. -1 means no next move has been chosen yet.
+                    winner =        -1; // The player who is (thus far) set to take the trick.
+                    heartsBroken = false; // Have hearts been broken this round?
+                    currentSuit = suit_start; // The suit of the current trick.
+                    highestRank = rank_start; // The highest rank on suit that has been played during this trick.
                     // Read input...v
                     //printf("Server is starting new round.\n");
                     numPlayers = atoi(recvBuffer+1);
@@ -382,7 +393,7 @@ int main(int argc, const char * argv[]) {
                         hand[cardIndex] = NULL_CARD;
                     }
                     //...^
-                    
+                    trickNo = 0;
                     for (int i = 0; i<MAX_CARDS_PER_PLAYER; i++){ // See if we have the Two of Clubs.
                         if (hand[i]==makeCard(suit_clubs, rank_2)){
                             nextMove = i;

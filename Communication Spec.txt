@@ -82,6 +82,7 @@ Communication at the Low Level:{
 
 Communication at the High Level:{
     All messages to/from the server should be null-terminated strings. If you don't know what "null-terminated" means, you most likely don't have to worry about it.
+    The server may run a ping test on each client. It'll send the message "^", to which your client should immediately reply "^".
     When all the AI players are being added in, the server sends the message "@" to all the clients.
     Your client should immediately respond to a "@" message with your AI's ASCII name of maximum length 15 characters (for example, "Moon Bot").
     The rounds then begin.
@@ -102,6 +103,7 @@ Communication at the High Level:{
 
 	Reference of message headers:{
 		_Message Header_			_Meaning_				_Action_	
+		"^"                         Ping                    ASAP reply "^".
 		"@"							Send name				ASAP send the name of your AI.
 		":"							Round starting			Read in your hand, set up your AI, etc.
 		"["							Asking for play			ASAP send the index of the card you want to play.

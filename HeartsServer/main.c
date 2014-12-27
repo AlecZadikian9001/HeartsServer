@@ -125,7 +125,7 @@ ReturnCode handlePlay(struct Game* game, int cardIndex){
         if (playedCard != makeCard(suit_clubs, rank_2)) return RET_INPUT_ERROR; // first player must play 2 of clubs
     }
     if (!game->heartsDropped && game->cardsPlayed==0 && suitOf(playedCard) == suit_hearts){
-        // We check later to make sure the player has nothing but hearts...
+        // We check to make sure the player has nothing but hearts...
         if (!(player->clubsVoid && player->diamondsVoid && player->spadesVoid)){
             player->spadesVoid = true;
             player->clubsVoid = true;

@@ -75,8 +75,10 @@ struct Player{
     int out; //file output descriptor for AI comm
     //char sendBuffer[SEND_BUFFER_LEN];
     //char recvBuffer[RECV_BUFFER_LEN];
+    int newPoints; // The points added onto the score last round (negated if the player shoots the moon).
     uint64_t score; // The player's score
     card* hand; // The player's hand.
+    bool canShootMoon; // Starts as true at beginning of round. If this is true by the end of the round, the player has shot the moon.
     bool heartsVoid; // Is this guy void on... hearts (for optimization purposes)?
     bool clubsVoid; // ... clubs?
     bool diamondsVoid; // ... diamonds?
@@ -179,16 +181,22 @@ ReturnCode handlePlay(struct Game* game, int cardIndex){
     game->turn = (game->turn+1) % game->numPlayers;
     if (game->cardsPlayed >= game->numPlayers){ // last card has been played
         int score = 0;
-        for (int i = 0; i<game->numPlayers; i++){
+        for (int i = 0; i<game->numPlayers; i++){ // Tally up points gained
             if (suitOf(game->trick[i]) == suit_hearts) score++;
             else if (game->trick[i] == makeCard(suit_spades, rank_Q)) score += 13;
         }
-        struct Player* winner = game->players[game->winner];
-        if (game->trickNo != 0) winner->score += score; // Only add to score if it's not the first trick of the round
-        else score = 0;
+        if (score!=0){ // Nobody else can shoot the moon if points have been racked up
+            for (int i = 0; i<game->numPlayers; i++){
+                if (i != game->winner) game->players[i]->canShootMoon = false;
+            }
+        }
+        if (game->trickNo != 0){
+            game->players[game->winner]->newPoints = score; // Only add to score if it's not the first trick of the round
+        }
+        else game->players[game->winner]->newPoints = 0;
         game->turn = game->winner; // this player controls
         game->firstPlayer = game->turn;
-        DEBUG_PRINT("%s won the trick for %d points.\n", winner->name, score);
+        DEBUG_PRINT("%s won the trick for %d points.\n", game->players[game->winner]->name, game->players[game->winner]->newPoints);
     }
     return RET_NO_ERROR;
 }
@@ -254,6 +262,7 @@ ReturnCode runNewRound(struct Game* game){
     int cardsPerPlayer = DECK_SIZE / game->numPlayers;
     for (int playerIndex = 0; playerIndex < game->numPlayers; playerIndex++){
         player = game->players[playerIndex];
+        player->canShootMoon = true;
         player->heartsVoid = false;
         player->clubsVoid = false;
         player->diamondsVoid = false;
@@ -299,7 +308,7 @@ ReturnCode runNewRound(struct Game* game){
     }
     //...^
     
-    //Play...v
+    // Play...v
     game->heartsDropped = false;
     game->winner = game->firstPlayer;
     int lastTurn;
@@ -328,6 +337,31 @@ ReturnCode runNewRound(struct Game* game){
         }
         game->trickNo++;
         game->cardsPlayed = 0;
+    }
+    //...^
+    
+    // Add points...v
+    int moonShot = -1;
+    for (int i = 0; i<game->numPlayers; i++){
+        if (game->players[i]->canShootMoon == true){
+            if (moonShot != -1){
+                printf("*** ERROR: MOON SHOT TWICE ***\n"); // TODO remove debug check
+            }
+            moonShot = i;
+            //printf("%s shot the moon!\n", game->players[i]->name);
+            // break; // TODO uncomment to remove debug check
+        }
+    }
+    if (moonShot != -1){
+        for (int i = 0; i<game->numPlayers; i++){
+            if (i != moonShot) game->players[i]->score = game->players[i]->score + 20;
+        }
+    }
+    else{
+        for (int i = 0; i<game->numPlayers; i++){
+            game->players[i]->score = game->players[i]->score + game->players[i]->newPoints;
+            //printf("%s added %d points.\n", game->players[i]->name, game->players[i]->newPoints);
+        }
     }
     //...^
     

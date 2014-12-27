@@ -19,6 +19,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include "ctalk.h"
+#include "cJSON.h"
 #include "general.h"
 
 // Game-related definitions ===vv
@@ -76,16 +77,80 @@ char* nameOfSuit(suit suit){
 /*
  getName() and handlePlay() are the only two functions you will need to edit to create your AI.
  You may also need some persistent variables for your AI's calculations. For simplicity, use global variables (even though they're "evil").
+ And edit the language selection #defines if you aren't going to use C.
  It should be doable just by editing the code within the "YOUR CODE HERE" commented areas.
  
  vvv
  */
 
+// Alternate language selection (make EXACTLY one of these true if you aren't using C)...v
+/* v EDIT CODE HERE v */
+#define USING_PYTHON (false) // If you're using Python (in which case Python scripts will be called directly from the C template).
+#define USING_OTHER (false) // If you're using Java or something else that supports FIFO pipes and can parse JSON.
+/* ^ EDIT CODE HERE ^ */
+#ifdef USING_OTHER
+char interProcessInBuffer[2048]; // TODO make sure this is a suitable buffer size
+char interProcessOutBuffer[2048]; // TODO make sure this is a suitable buffer size
+#endif
+//...^
+
 // Global variables...v
+int interProcessOutFD = -1;
+int interProcessInFD = -1;
 /* v YOUR CODE HERE v */
 
 /* ^ YOUR CODE HERE ^ */
 //...^
+
+int handlePlayUsingFIFO(int* playerID, int* numPlayers, int* firstPlayer, int* turn, int* winner, bool* heartsBroken, card* currentCard, suit* currentSuit, rank* highestRank, card* hand, card* trick, int* trickNo){ // For passing input to Java or other process. Do not edit.
+    
+    bool isItMyTurn = (handlePlay(playerID, numPlayers, firstPlayer, turn, winner, heartsBroken, currentCard, currentSuit, highestRank, hand, trick, trickNo) == true);
+    
+    if (interProcessOutFD == -1 || interProcessInFD == -1){ // Open the pipes first
+        bool error = false;
+        char* inPath = "/tmp/heartsIn";
+        char* outPath = "/tmp/heartsOut";
+        int fifoOut = mkfifo(outPath, S_IWUSR | S_IRUSR | S_IRGRP | S_IROTH);
+        int fifoIn = mkfifo(inPath, S_IWUSR | S_IRUSR | S_IRGRP | S_IROTH);
+        int in = open(inPath, O_RDONLY);
+        if (in==-1){
+            printf("***ERROR OPENING IN FILE, STOPPING***\n");
+            error = true;
+        }
+        else printf("Opened interprocess AI logic in pipe at %s\n", inPath);
+        int out = open(outPath, O_WRONLY);
+        if (out==-1){
+            printf("***ERROR OPENING OUT FILE, STOPPING***\n");
+            error = true;
+        }
+        else printf("Opened interprocess AI logic out pipe at %s\n", outPath);
+        if (error) exit(1);
+    }
+    
+    cJSON* mainJSON = cJSON_CreateObject();
+    cJSON* handJSON = cJSON_CreateIntArray(hand, MAX_CARDS_PER_PLAYER);
+    cJSON* trickJSON = cJSON_CreateIntArray(trick, MAX_PLAYERS);
+    cJSON_AddItemToObject(mainJSON, "hand", handJSON);
+    cJSON_AddItemToObject(mainJSON, "trick", trickJSON);
+    cJSON_AddNumberToObject(mainJSON, "playerID", *playerID);
+    cJSON_AddNumberToObject(mainJSON, "numPlayers", *numPlayers);
+    cJSON_AddNumberToObject(mainJSON, "firstPlayer", *firstPlayer);
+    cJSON_AddNumberToObject(mainJSON, "turn", *turn);
+    cJSON_AddNumberToObject(mainJSON, "winner", *winner);
+    cJSON_AddBoolToObject(mainJSON, "heartsBroken", *heartsBroken);
+    cJSON_AddNumberToObject(mainJSON, "currentCard", *currentCard);
+    cJSON_AddNumberToObject(mainJSON, "currentSuit", *currentSuit);
+    cJSON_AddNumberToObject(mainJSON, "highestRank", *highestRank);
+    cJSON_AddNumberToObject(mainJSON, "trickNo", *trickNo);
+    
+    char* printedJSON = cJSON_Print(mainJSON);
+    strcpy(interProcessOutBuffer, printedJSON);
+    size_t len = strlen(interProcessOutBuffer);
+    interProcessOutBuffer[len+1] = '\4'; // '\4' marks the end of a message
+    write(interProcessOutFD, interProcessOutBuffer, len+2);
+    read(interProcessInFD, interProcessInBuffer, sizeof(interProcessInBuffer));
+    //TODO TODO TODO
+}
 
 char* getName(){ // Return the bot's name, must be unique, must be null-terminated
     char* name;
@@ -127,6 +192,8 @@ int handlePlay(int* playerID, int* numPlayers, int* firstPlayer, int* turn, int*
     int playerBeforeMe = *playerID-1;
     if (playerBeforeMe < 0) playerBeforeMe += *numPlayers;
     if (playerBeforeMe == *turn) isItMyTurn = true;
+    
+    if (USING_PYTHON || USING_OTHER) return isItMyTurn;
     //printf("Player %d just played the %d of %s, player %d owns the trick, player %d went first, the trick suit is %s, and the highest card is a %d.\n", *turn, rankOf(*currentCard)+1, nameOfSuit(suitOf(*currentCard)), *winner, *firstPlayer, nameOfSuit(*currentSuit), *highestRank+1);
     //...^
     
@@ -147,7 +214,7 @@ int handlePlay(int* playerID, int* numPlayers, int* firstPlayer, int* turn, int*
      - bool* heartsBroken: Whether or not hearts have been broken this round
      - card* hand: Your AI's hand, an array of cards
      - card* trick: The trick (aka the cards on the table), an array of cards
-     - int trickNo: How many tricks have been played already in this round.
+     - int* trickNo: How many tricks have been played already in this round.
      */
     
     int ret = -1;

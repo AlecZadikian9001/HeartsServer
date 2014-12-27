@@ -10,6 +10,7 @@
 		E1AB4A311A437066003105F8 /* main.c in Sources */ = {isa = PBXBuildFile; fileRef = E1AB4A301A437066003105F8 /* main.c */; };
 		E1AB4A3B1A43707F003105F8 /* general.c in Sources */ = {isa = PBXBuildFile; fileRef = E1AB4A381A43707F003105F8 /* general.c */; };
 		E1AB4A3C1A43707F003105F8 /* ctalk.c in Sources */ = {isa = PBXBuildFile; fileRef = E1AB4A391A43707F003105F8 /* ctalk.c */; };
+		E1F188361A4F3B900031460D /* cJSON.c in Sources */ = {isa = PBXBuildFile; fileRef = E1F188341A4F3B900031460D /* cJSON.c */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -31,6 +32,8 @@
 		E1AB4A381A43707F003105F8 /* general.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = general.c; sourceTree = "<group>"; };
 		E1AB4A391A43707F003105F8 /* ctalk.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = ctalk.c; sourceTree = "<group>"; };
 		E1AB4A3A1A43707F003105F8 /* ctalk.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = ctalk.h; sourceTree = "<group>"; };
+		E1F188341A4F3B900031460D /* cJSON.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = cJSON.c; sourceTree = "<group>"; };
+		E1F188351A4F3B900031460D /* cJSON.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = cJSON.h; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -67,6 +70,8 @@
 				E1AB4A381A43707F003105F8 /* general.c */,
 				E1AB4A391A43707F003105F8 /* ctalk.c */,
 				E1AB4A3A1A43707F003105F8 /* ctalk.h */,
+				E1F188341A4F3B900031460D /* cJSON.c */,
+				E1F188351A4F3B900031460D /* cJSON.h */,
 				E1AB4A301A437066003105F8 /* main.c */,
 			);
 			path = HeartsAI;
@@ -129,6 +134,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				E1AB4A3C1A43707F003105F8 /* ctalk.c in Sources */,
+				E1F188361A4F3B900031460D /* cJSON.c in Sources */,
 				E1AB4A3B1A43707F003105F8 /* general.c in Sources */,
 				E1AB4A311A437066003105F8 /* main.c in Sources */,
 			);
@@ -244,6 +250,7 @@
 				E1AB4A361A437066003105F8 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
 	};

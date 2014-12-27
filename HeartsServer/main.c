@@ -350,7 +350,7 @@ ReturnCode runNewRound(struct Game* game){
                 printf("*** ERROR: MOON SHOT TWICE ***\n"); // TODO remove debug check
             }
             moonShot = i;
-            printf("%s shot the moon!\n", game->players[i]->name);
+            //printf("%s shot the moon!\n", game->players[i]->name);
             // break; // TODO uncomment to remove debug check
         }
     }

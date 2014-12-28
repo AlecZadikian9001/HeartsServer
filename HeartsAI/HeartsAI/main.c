@@ -89,8 +89,11 @@ char* nameOfSuit(suit suit){
 #define USING_OTHER (false) // If you're using Java or something else that supports FIFO pipes and can parse JSON.
 /* ^ EDIT CODE HERE ^ */
 #ifdef USING_OTHER
-char interProcessInBuffer[2048]; // TODO make sure this is a suitable buffer size
-char interProcessOutBuffer[2048]; // TODO make sure this is a suitable buffer size
+#define INTERPROCESS_BUFLEN (2048) // TODO make sure this is a suitable buffer size
+char interProcessInBuffer[INTERPROCESS_BUFLEN];
+char interProcessReadBuffer[INTERPROCESS_BUFLEN];
+char interProcessOutBuffer[INTERPROCESS_BUFLEN];
+size_t interProcessPipeBytesAvailable = 0;
 #endif
 //...^
 
@@ -145,11 +148,37 @@ int handlePlayUsingFIFO(int* playerID, int* numPlayers, int* firstPlayer, int* t
     
     char* printedJSON = cJSON_Print(mainJSON);
     strcpy(interProcessOutBuffer, printedJSON);
+    cJSON_Delete(mainJSON);
+    efree(printedJSON);
     size_t len = strlen(interProcessOutBuffer);
     interProcessOutBuffer[len+1] = '\4'; // '\4' marks the end of a message
+    printf("Sending data over pipe to AI process:\n%s\n... of length %lu\n", interProcessOutBuffer, len+1);
     write(interProcessOutFD, interProcessOutBuffer, len+2);
-    read(interProcessInFD, interProcessInBuffer, sizeof(interProcessInBuffer));
-    //TODO TODO TODO
+    size_t recv = 0;
+    bool breakOut = false;
+    while (true){ // Read until '/4', shift rest of data in buffer down
+        for (size_t i = 0; i<interProcessPipeBytesAvailable; i++){
+            if (interProcessInBuffer[i] == '\4'){
+                strcpy(interProcessReadBuffer, interProcessInBuffer);
+                memcpy(interProcessInBuffer, interProcessInBuffer+i+1, interProcessPipeBytesAvailable - i);
+                interProcessPipeBytesAvailable -= (i + 1);
+                breakOut = true;
+                break;
+            }
+        }
+        if (breakOut) break;
+        else{
+            recv = read(interProcessInFD, interProcessInBuffer + interProcessPipeBytesAvailable, INTERPROCESS_BUFLEN - interProcessPipeBytesAvailable);
+            interProcessPipeBytesAvailable += recv;
+        }
+    }
+    printf("Received message from pipe from AI process:\n%s\n... of length %lu\n", interProcessReadBuffer, strlen(interProcessReadBuffer)+1);
+    
+    cJSON* receivedJSON = cJSON_Parse(interProcessReadBuffer);
+    // TODO parse received JSON, updating pointers
+    // TODO return card to play
+    
+    // TODO Make Java template
 }
 
 char* getName(){ // Return the bot's name, must be unique, must be null-terminated

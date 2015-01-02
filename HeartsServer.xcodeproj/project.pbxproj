@@ -31,6 +31,7 @@
 		E17E78C519F98C01007F2898 /* ctalk.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = ctalk.h; sourceTree = "<group>"; };
 		E17E78C719F98C4C007F2898 /* general.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = general.h; sourceTree = "<group>"; };
 		E17E78C819F98C4C007F2898 /* general.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = general.c; sourceTree = "<group>"; };
+		E19DCCDC1A56591800ECA262 /* HeartsServer4-4 */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = "HeartsServer4-4"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -68,6 +69,7 @@
 				E17E78C419F98C01007F2898 /* ctalk.c */,
 				E17E78C519F98C01007F2898 /* ctalk.h */,
 				E17E78BC19F98B6B007F2898 /* main.c */,
+				E19DCCDC1A56591800ECA262 /* HeartsServer4-4 */,
 			);
 			path = HeartsServer;
 			sourceTree = "<group>";

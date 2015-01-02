@@ -1,0 +1,1 @@
+./HeartsServer 8 4 900000 /tmp/ai1In /tmp/ai1Out /tmp/ai2In /tmp/ai2Out /tmp/ai3In /tmp/ai3Out /tmp/ai4In /tmp/ai4Out /tmp/ai5In /tmp/ai5Out /tmp/ai6In /tmp/ai6Out /tmp/ai7In /tmp/ai7Out /tmp/ai8In /tmp/ai8Out 

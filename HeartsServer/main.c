@@ -408,27 +408,32 @@ void freeGame(struct Game* game){
 
 struct ThreadArg{
     int threadNo; // Thread number
+    struct Game* game; // Edited by thread so main thread can access scores
     int numPlayers; // Number of players
     uint64_t numTests; // Number of tests (game rounds) to run
     int* ins; // Input fds
     int* outs; // Output fds
-    bool* start; // Whether or not to start the tests
+    bool isRunning; // Whether or not tests should be running
+    bool* shouldStop; // Whether to gracefully stop testing
 };
 
 void *gameThread(void *arg){ // One thread is used to one test one group.
     struct ThreadArg* threadArg = arg;
-    while (!*(threadArg->start)){
+    while (!(threadArg->isRunning)){
         usleep(5000);
     }
     char* sendBuffer = emalloc(SEND_BUFFER_LEN);
     char* recvBuffer = emalloc(RECV_BUFFER_LEN);
     struct Game* game = createGame(threadArg->numPlayers, threadArg->ins, threadArg->outs, sendBuffer, recvBuffer);
+    threadArg->game = game;
     if (game==NULL){
         printf("***GAME THREAD %d IS STOPPING DUE TO FATAL ERROR CREATING GAME***\n", threadArg->threadNo);
     }
     ReturnCode ret;
     printf("Thread %d running tests...\n", threadArg->threadNo);
     for (uint64_t i = 0; i<threadArg->numTests; i++){
+        if (*(threadArg->shouldStop)) break;
+        while (!(threadArg->isRunning)){ usleep(50); }
         ret = runNewRound(game);
         if (ret!=RET_NO_ERROR){
             printf("***GAME THREAD %d IS STOPPING DUE TO ERROR: ERROR CODE %d***\n", threadArg->threadNo, ret);
@@ -508,10 +513,14 @@ int main(int argc, const char * argv[]) {
     printf("Starting Hearts server with %d players, %d players per group, and %llu tests.\n", numPlayers, playersPerGroup, numTests);
     int numThreads = numPlayers/playersPerGroup;
     int fdIndex = 4;
-    bool isRunningTests = false;
+    bool shouldStop = false;
+    pthread_t threads[numThreads];
+    struct ThreadArg* threadArgs[numThreads];
     for (int i = 0; i < numThreads; i++){
         pthread_t thread;
+        threads[i] = thread;
         struct ThreadArg* arg = emalloc(sizeof(struct ThreadArg));
+        threadArgs[i] = arg;
         int* outs = emalloc(sizeof(int)*playersPerGroup);
         int* ins = emalloc(sizeof(int)*playersPerGroup);
         for (int i2 = 0; i2 < playersPerGroup*2; i2+=2){
@@ -535,7 +544,8 @@ int main(int argc, const char * argv[]) {
         arg->numTests = numTests;
         arg->outs = outs;
         arg->ins = ins;
-        arg->start = &isRunningTests;
+        arg->isRunning = false;
+        arg->shouldStop = &shouldStop;
         if (pthread_create(&thread, NULL, gameThread, (void*) arg) != 0){
             if (logLevel >= LOG_ERROR) printf("***FATAL ERROR: UNABLE TO CREATE A THREAD, RAGEQUITTING***\n");
             exit(0);
@@ -543,10 +553,29 @@ int main(int argc, const char * argv[]) {
         printf("Created thread %d.\n", i);
     }
     printf("All pipes connected and ready. Press RETURN to start the tests... ");
-    char keyboardBuf[2];
+    char keyboardBuf[128];
     fgets(keyboardBuf, 2, stdin);
-    isRunningTests = true;
-    pause();
+    for (int ti = 0; ti<numThreads; ti++){ // Start the threads
+        (threadArgs[ti]->isRunning) = true;
+    }
+    while(1){
+        fgets(keyboardBuf, 128, stdin);
+        if (strncmp(keyboardBuf, "scores\n", 8)==0){ // Print scores
+            for (int ti = 0; ti<numThreads; ti++){
+                (threadArgs[ti]->isRunning) = false;
+                printf("\n=== Thread %d scores ===\n========================v\n", ti);
+                for (int i = 0; i<playersPerGroup; i++){
+                    printf("%s has %llu points.\n", threadArgs[ti]->game->players[i]->name, threadArgs[ti]->game->players[i]->score);
+                }
+                printf("========================^\n\n");
+                (threadArgs[ti]->isRunning) = true;
+            }
+        }
+        else if (strncmp(keyboardBuf, "stop\n", 8)==0){ // Stop gracefully
+            printf("Stopping all worker threads...\n\n");
+            shouldStop = true;
+        }
+    }
     //...^
     return 0;
 }

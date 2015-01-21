@@ -18,6 +18,7 @@
 #include <fcntl.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <Python/Python.h>
 #include "ctalk.h"
 #include "cJSON.h"
 #include "general.h"
@@ -105,6 +106,71 @@ int interProcessInFD = -1;
 /* ^ YOUR CODE HERE ^ */
 //...^
 
+int handlePlayUsingPython(int* playerID, int* numPlayers, int* firstPlayer, int* turn, int* winner, bool* heartsBroken, card* currentCard, suit* currentSuit, rank* highestRank, card* hand, card* trick, int* trickNo){ // For passing input to Python script. Do not edit.
+    {
+        
+        // TODO fix
+        PyObject *pName, *pModule, *pDict, *pFunc;
+        PyObject *pArgs, *pValue;
+        int i;
+        
+        Py_Initialize();
+        pName = PyString_FromString("HeartsAI");
+        /* Error checking of pName left out */
+        
+        pModule = PyImport_Import(pName);
+        Py_DECREF(pName);
+        
+        if (pModule != NULL) {
+            pFunc = PyObject_GetAttrString(pModule, argv[2]);
+            /* pFunc is a new reference */
+            
+            if (pFunc && PyCallable_Check(pFunc)) {
+                pArgs = PyTuple_New(argc - 3);
+                for (i = 0; i < argc - 3; ++i) {
+                    pValue = PyInt_FromLong(atoi(argv[i + 3]));
+                    PyList_
+                    if (!pValue) {
+                        Py_DECREF(pArgs);
+                        Py_DECREF(pModule);
+                        fprintf(stderr, "Cannot convert argument\n");
+                        return 1;
+                    }
+                    /* pValue reference stolen here: */
+                    PyTuple_SetItem(pArgs, i, pValue);
+                }
+                pValue = PyObject_CallObject(pFunc, pArgs);
+                Py_DECREF(pArgs);
+                if (pValue != NULL) {
+                    printf("Result of call: %ld\n", PyInt_AsLong(pValue));
+                    Py_DECREF(pValue);
+                }
+                else {
+                    Py_DECREF(pFunc);
+                    Py_DECREF(pModule);
+                    PyErr_Print();
+                    fprintf(stderr,"Call failed\n");
+                    return 1;
+                }
+            }
+            else {
+                if (PyErr_Occurred())
+                    PyErr_Print();
+                fprintf(stderr, "Cannot find function \"%s\"\n", argv[2]);
+            }
+            Py_XDECREF(pFunc);
+            Py_DECREF(pModule);
+        }
+        else {
+            PyErr_Print();
+            fprintf(stderr, "Failed to load \"%s\"\n", argv[1]);
+            return 1;
+        }
+        Py_Finalize();
+        return 0;
+    }
+}
+
 int handlePlayUsingFIFO(int* playerID, int* numPlayers, int* firstPlayer, int* turn, int* winner, bool* heartsBroken, card* currentCard, suit* currentSuit, rank* highestRank, card* hand, card* trick, int* trickNo){ // For passing input to Java or other process. Do not edit.
     
     bool isItMyTurn = (handlePlay(playerID, numPlayers, firstPlayer, turn, winner, heartsBroken, currentCard, currentSuit, highestRank, hand, trick, trickNo) == true);
@@ -179,6 +245,7 @@ int handlePlayUsingFIFO(int* playerID, int* numPlayers, int* firstPlayer, int* t
     // TODO return card to play
     
     // TODO Make Java template
+    return 0;
 }
 
 char* getName(){ // Return the bot's name, must be unique, must be null-terminated
@@ -222,7 +289,6 @@ int handlePlay(int* playerID, int* numPlayers, int* firstPlayer, int* turn, int*
     if (playerBeforeMe < 0) playerBeforeMe += *numPlayers;
     if (playerBeforeMe == *turn) isItMyTurn = true;
     
-    if (USING_PYTHON || USING_OTHER) return isItMyTurn;
     //printf("Player %d just played the %d of %s, player %d owns the trick, player %d went first, the trick suit is %s, and the highest card is a %d.\n", *turn, rankOf(*currentCard)+1, nameOfSuit(suitOf(*currentCard)), *winner, *firstPlayer, nameOfSuit(*currentSuit), *highestRank+1);
     //...^
     
@@ -248,6 +314,14 @@ int handlePlay(int* playerID, int* numPlayers, int* firstPlayer, int* turn, int*
     
     int ret = -1;
     
+    if (USING_PYTHON){
+        ret = handlePlayUsingPython(playerID, numPlayers, firstPlayer, turn, winner, heartsBroken, currentCard, currentSuit, highestRank, hand, trick, trickNo);
+    }
+    else if (USING_OTHER){
+        ret = handlePlayUsingFIFO(playerID, numPlayers, firstPlayer, turn, winner, heartsBroken, currentCard, currentSuit, highestRank, hand, trick, trickNo);
+    }
+    else{ // Find the move within the C program alone...
+        
     /* v YOUR CODE HERE (REPLACE DEFAULT) v */
     // Play _any_ valid card in the hand if it's our turn next...v
     if (isItMyTurn){
@@ -293,6 +367,7 @@ int handlePlay(int* playerID, int* numPlayers, int* firstPlayer, int* turn, int*
     }
     //...^
     /* ^ YOUR CODE HERE (REPLACE DEFAULT) ^ */
+    }
     
     if (*turn == temp1){ // Last card in trick
         *turn = *winner;
@@ -468,10 +543,10 @@ int main(int argc, const char * argv[]) {
                     while (true){
                         while (recvBuffer[scanIndex]!=','){
                             currentChar = recvBuffer[scanIndex];
-                         /*   if (currentChar !='\0' && currentChar != ',' && (currentChar < '0' || currentChar > '9')){ // Error-checking
-                                printf("***ERROR: RECEIVED INVALID MESSAGE FROM SERVER\n");
-                                exit(1);
-                            } */
+                            /*   if (currentChar !='\0' && currentChar != ',' && (currentChar < '0' || currentChar > '9')){ // Error-checking
+                             printf("***ERROR: RECEIVED INVALID MESSAGE FROM SERVER\n");
+                             exit(1);
+                             } */
                             if (currentChar=='\0'){
                                 endScan = true;
                                 break;
